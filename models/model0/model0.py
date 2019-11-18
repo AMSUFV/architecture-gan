@@ -6,6 +6,8 @@ import os
 import time
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+
 from IPython.display import clear_output
 
 import glob
@@ -38,22 +40,28 @@ class Model0:
         self.generator = self.generator()
         self.discriminator = self.discriminator()
         
-        if save_path != None:
-            self.save_path = save_path
-            if not os.path.exists(save_path):
-                os.makedirs(save_path)
+        self.save_path = save_path
+        if self.save_path != None:
+            if not os.path.exists(self.save_path):
+                os.makedirs(self.save_path)
         
         # Metricas para el display
-        # Loss
-        self.train_loss_real = tf.keras.metrics.Mean(name = 'train_loss_real')
-        self.train_loss_generated = tf.keras.metrics.Mean(name = 'train_loss_generated')
+        # Train
+        self.train_loss_disc = tf.keras.metrics.Mean(name = 'train_loss_disc')
+        self.train_loss_gen = tf.keras.metrics.Mean(name = 'train_loss_gen')
         
-        self.test_loss_real = tf.keras.metrics.Mean(name = 'test_loss_real')
-        self.test_loss_generated = tf.keras.metrics.Mean(name = 'test_loss_generated')
-        
-        # Accuracy
         self.train_acc_real = tf.keras.metrics.BinaryAccuracy(name = 'train_acc_real', threshold = 0.2)
         self.train_acc_generated = tf.keras.metrics.BinaryAccuracy(name = 'train_acc_generated', threshold = 0.2)
+        
+        self.stats = pd.DataFrame(columns = ['train loss disc', 'train loss gen', 'train acc real', 'train acc generated'])
+        
+#         self.plot_train_loss_disc = []
+#         self.plot_train_loss_gen = []
+#         self.plot_train_acc_real = []
+#         self.plot_train_acc_generated = []
+        
+        # Test
+        self.test_loss = tf.keras.metrics.Mean(name = 'test_loss')
         
         self.test_acc_real = tf.keras.metrics.BinaryAccuracy(name = 'test_acc_real', threshold = 0.2)
         self.test_acc_generated = tf.keras.metrics.BinaryAccuracy(name = 'test_acc_generated', threshold = 0.2)
@@ -94,7 +102,7 @@ class Model0:
         return train_dataset, test_dataset
     
     
-    # net-creating functions
+    # Creación de la red
     class buildingblocks:
         def downsample(filters, size, apply_batchnorm = True):
             initializer = tf.random_normal_initializer(0., 0.02)
@@ -255,6 +263,13 @@ class Model0:
 
         self.generator_optimizer.apply_gradients(zip(generator_gradients, self.generator.trainable_variables))
         self.discriminator_optimizer.apply_gradients(zip(discriminator_gradients, self.discriminator.trainable_variables))
+        
+        # Actualización de métricas
+        self.train_loss_disc(disc_loss)
+        self.train_loss_gen(gen_loss)
+        
+        self.train_acc_real(tf.ones_like(disc_real_output_first_pass), disc_real_output_first_pass)
+        self.train_acc_generated(tf.zeros_like(disc_generated_output_second_pass), disc_generated_output_second_pass)
 
 
     def fit(self, train_ds, test_ds):
@@ -273,17 +288,29 @@ class Model0:
 
             clear_output(wait=True)
             
-            template = 'Epoch {}\n
-                        train loss real: {}, train acc real: {}\n
-                        train loss generated: {}, train acc generated: {}\n
-                        test loss real: {}, test acc real: {}\n
-                        test loss generated: {}, test acc generated: {}'
+            # Metricas
+            template = 'Epoch {}\ntrain loss disc: {}, train loss gen: {}\ntrain acc real: {:.2f}, train acc generated: {:.2f}\ntime taken: {:.2f}'
+            print(template.format(epoch + 1,
+                                  self.train_loss_disc.result(),
+                                  self.train_loss_gen.result(),
+                                  self.train_acc_real.result()*100,
+                                  self.train_acc_generated.result()*100,
+                                  time.time()-start))
             
+            self.stats = self.stats.append(pd.DataFrame([[self.train_loss_disc.result(), self.train_loss_gen.result(), self.train_acc_real.result()*100, self.train_acc_generated.result()*100]], columns = self.stats.columns), ignore_index = True)
             
-            print ('Time taken for epoch {} is {:.2f} sec\n'.format(epoch + 1, time.time()-start))            
+            self.train_loss_disc.reset_states()
+            self.train_loss_gen.reset_states()
+        
+            self.train_acc_real.reset_states()
+            self.train_acc_generated.reset_states()
+            
+            # Imagenes
             if ((epoch + 1) % 5 == 0 or epoch == 0) and self.save_path != None:
-                # for (train_input, train_target), (test_input, test_target) in zip(train_ds.take(1), test_ds.take(1)):
                 self.generate_images(self.generator, plot_train_input, plot_train_target, plot_test_input, plot_test_target, epoch + 1)
+        
+        self.stats.to_csv('stats_model0.csv', index = False)
+                    
                     
     # Generación de imágenes
     def generate_images(self, model, train_inp, train_tar, test_inp, test_tar, epoch):
@@ -308,5 +335,5 @@ class Model0:
         plt.axis('off')
 
         clear_output(wait=True)
-        plt.savefig(f'{self.save_path}/image_{epoch}.png', pad_inches = None, bbox_inches = 'tight')
+        plt.savefig(f'{self.save_path}/image_epoch{epoch}.png', pad_inches = None, bbox_inches = 'tight')
         plt.show()
