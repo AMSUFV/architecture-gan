@@ -34,7 +34,7 @@ class Model0:
         self.discriminator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
         
         self.loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-
+        
         self.generator = self.generator()
         self.discriminator = self.discriminator()
         
@@ -42,7 +42,24 @@ class Model0:
             self.save_path = save_path
             if not os.path.exists(save_path):
                 os.makedirs(save_path)
-            
+        
+        # Metricas para el display
+        # Loss
+        self.train_loss_real = tf.keras.metrics.Mean(name = 'train_loss_real')
+        self.train_loss_generated = tf.keras.metrics.Mean(name = 'train_loss_generated')
+        
+        self.test_loss_real = tf.keras.metrics.Mean(name = 'test_loss_real')
+        self.test_loss_generated = tf.keras.metrics.Mean(name = 'test_loss_generated')
+        
+        # Accuracy
+        self.train_acc_real = tf.keras.metrics.BinaryAccuracy(name = 'train_acc_real', threshold = 0.2)
+        self.train_acc_generated = tf.keras.metrics.BinaryAccuracy(name = 'train_acc_generated', threshold = 0.2)
+        
+        self.test_acc_real = tf.keras.metrics.BinaryAccuracy(name = 'test_acc_real', threshold = 0.2)
+        self.test_acc_generated = tf.keras.metrics.BinaryAccuracy(name = 'test_acc_generated', threshold = 0.2)
+     
+        
+        
         
     # dataset creation function
     def gen_dataset(self, *, input_path, real_path, repeat_real = 1):
@@ -241,6 +258,13 @@ class Model0:
 
 
     def fit(self, train_ds, test_ds):
+        # Se toman imagenes para apreciar la evolucion del modelo
+        for (train_input, train_target), (test_input, test_target) in zip(train_ds.take(1), test_ds.take(1)):
+            plot_train_input = train_input
+            plot_train_target = train_target
+            plot_test_input = test_input
+            plot_test_target = test_target
+        
         for epoch in range(self.epochs):
             start = time.time()
             # Train
@@ -248,16 +272,21 @@ class Model0:
                 self.train_step(input_image, target)
 
             clear_output(wait=True)
-            # Test on the same image so that the progress of the model can be 
-            # easily seen.
-            print ('Time taken for epoch {} is {:.2f} sec\n'.format(epoch + 1, time.time()-start))
             
-            if (epoch + 1) % 5 == 0 and self.save_path != None:
-                for (train_input, train_target), (test_input, test_target) in zip(train_ds.take(1), test_ds.take(1)):
-                    self.generate_images(self.generator, train_input, train_target, test_input, test_target, epoch + 1)
+            template = 'Epoch {}\n
+                        train loss real: {}, train acc real: {}\n
+                        train loss generated: {}, train acc generated: {}\n
+                        test loss real: {}, test acc real: {}\n
+                        test loss generated: {}, test acc generated: {}'
+            
+            
+            print ('Time taken for epoch {} is {:.2f} sec\n'.format(epoch + 1, time.time()-start))            
+            if ((epoch + 1) % 5 == 0 or epoch == 0) and self.save_path != None:
+                # for (train_input, train_target), (test_input, test_target) in zip(train_ds.take(1), test_ds.take(1)):
+                self.generate_images(self.generator, plot_train_input, plot_train_target, plot_test_input, plot_test_target, epoch + 1)
                     
     # Generación de imágenes
-    def generate_images(model, train_inp, train_tar, test_inp, test_tar, epoch):
+    def generate_images(self, model, train_inp, train_tar, test_inp, test_tar, epoch):
 
         train_images = [train_inp, train_tar, model(train_inp, training = False)]
         test_images = [test_inp, test_tar, model(test_inp, training = False)]
@@ -265,12 +294,11 @@ class Model0:
 
         title = ['{} input Image', '{} ground truth', '{} predicted image']
 
-        fig, ax = plt.subplots(len(plot_images), len(plot_images[0]), figsize  = (30, 14))
+        fig, ax = plt.subplots(len(plot_images), len(plot_images[0]), figsize  = (30, 10))
         for i, image_list in enumerate(plot_images):
             for j, image in enumerate(image_list):
 
-                ax[i, j].imshow(image[0] * 0.5 + 0.5)
-
+                ax[i, j].imshow(image[0, :, :, :] * 0.5 + 0.5)
                 ax[i, j].axis('off')
 
                 if i == 0:
