@@ -17,6 +17,7 @@ from itertools import compress
 
 from models.pix2pix import pix2pix_preprocessing as preprocessing
 
+
 class Model0:
     """
     Variación de pix2pix con un paso doble en el entrenamiento
@@ -271,7 +272,6 @@ class Model0:
         self.train_acc_real(tf.ones_like(disc_real_output_first_pass), disc_real_output_first_pass)
         self.train_acc_generated(tf.zeros_like(disc_generated_output_second_pass), disc_generated_output_second_pass)
 
-
     def fit(self, train_ds, test_ds):
         # Se toman imagenes para apreciar la evolucion del modelo
         for (train_input, train_target), (test_input, test_target) in zip(train_ds.take(1), test_ds.take(1)):
@@ -310,8 +310,7 @@ class Model0:
                 self.generate_images(self.generator, plot_train_input, plot_train_target, plot_test_input, plot_test_target, epoch + 1)
         
         self.stats.to_csv('stats_model0.csv', index = False)
-                    
-                    
+
     # Generación de imágenes
     def generate_images(self, model, train_inp, train_tar, test_inp, test_tar, epoch):
 
