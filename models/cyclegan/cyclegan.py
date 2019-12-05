@@ -3,22 +3,21 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import glob
 import os
 import time
-import tensorflow as tf
-import matplotlib.pyplot as plt
 
+import matplotlib.pyplot as plt
+import tensorflow as tf
 from IPython.display import clear_output
 from sklearn.model_selection import train_test_split
+
 from models.pix2pix import pix2pix_preprocessing as preprocessing
 
 
 class CycleGAN:
     def __init__(self, *, img_width=512, img_height=256, epochs=200, save_path=None):
-        self.img_width = img_width
         preprocessing.IMG_WIDTH = img_width
-        self.img_height = img_height
         preprocessing.IMG_HEIGHT = img_height
-        self.epochs = epochs
 
+        self.epochs = epochs
         self.LAMBDA = 10
 
         self.generator_xy_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
@@ -39,6 +38,9 @@ class CycleGAN:
             self.save_path = save_path
             if not os.path.exists(self.save_path):
                 os.makedirs(self.save_path)
+
+        # metricas
+        
 
     # dataset creation function
     @staticmethod
@@ -241,7 +243,7 @@ class CycleGAN:
 
     def fit(self, train_ds, test_ds):
         # Se toman imagenes para apreciar la evolucion del modelo
-        for (train_x, train_y), (test_x, test_y) in zip(train_ds.take(1), test_ds.take(1)):
+        for (_, _), (test_x, test_y) in zip(train_ds.take(1), test_ds.take(1)):
             plot_test_x = test_x
             plot_test_y = test_y
 
@@ -252,24 +254,15 @@ class CycleGAN:
                 self.train_step(image_x, image_y)
 
             clear_output(wait=True)
-
-            # Metricas
-            template = 'Epoch {}\ntrain loss disc: {}, train loss gen: {}\ntrain acc real: {:.2f}, train acc ' \
-                       'generated: {:.2f}\ntime taken: {:.2f}'
-            print(template.format(epoch + 1,
-                                  self.train_loss_disc.result(),
-                                  self.train_loss_gen.result(),
-                                  self.train_acc_real.result() * 100,
-                                  self.train_acc_generated.result() * 100,
-                                  time.time() - start))
+            print('Time taken for epoch {}: {:.2f}'.format(epoch+1, time.time() - start))
 
             # Imagenes
-            if (epoch + 1) % 5 == 0 or epoch == 0 and self.save_path is not None:
-                self.generate_images(self.generator_xy, plot_test_x, epoch)
-                self.generate_images(self.generator_yx, plot_test_y, epoch)
+            if (epoch + 1) % 2 == 0 or epoch == 0 and self.save_path is not None:
+                self.generate_images(self.generator_xy, plot_test_x, f'{epoch}xy')
+                self.generate_images(self.generator_yx, plot_test_y, f'{epoch}yx')
 
     # Generación de imágenes
-    def generate_images(self, model, image, epoch):
+    def generate_images(self, model, image, name):
         prediction = model(image, training=False)
 
         display_list = [image[0], prediction[0]]
@@ -282,7 +275,7 @@ class CycleGAN:
             plt.title(title[i])
             plt.imshow(display_list[i] * 0.5 + 0.5)
             plt.axis('off')
-        plt.savefig(f'{self.save_path}/image_epoch{epoch}.png', pad_inches=None, bbox_inches='tight')
+        plt.savefig(f'{self.save_path}/{name}.png', pad_inches=None, bbox_inches='tight')
         plt.show()
 
 
@@ -290,7 +283,7 @@ if __name__ == "__main__":
     cyclegan = CycleGAN(save_path='C:/Users/Ceiec06/Documents/GitHub/ARQGAN/test/')
 
     paths_fakes = glob.glob('C:/Users/Ceiec06/Documents/GitHub/CEIEC-GANs/greek_temples_dataset/ruinas/*.png')
-    paths_reals = glob.glob('C:/Users/Ceiec06/Documents/GitHub/ARQGAN/ruins*/*.png')
+    paths_reals = glob.glob('C:/Users/Ceiec06/Documents/GitHub/ARQGAN/ruins_00/*.png')
 
-    train, test = cyclegan.gen_dataset(paths_fakes, paths_reals)
+    train, test = cyclegan.gen_dataset(paths_x=paths_reals, paths_y=paths_fakes)
     cyclegan.fit(train, test)

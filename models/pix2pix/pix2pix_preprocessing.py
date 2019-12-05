@@ -8,15 +8,12 @@ IMG_WIDTH = 512
 def load(input_path, real_path):
     paths = [input_path, real_path]
     images = []
-
     for path in paths:
         # Loading the image
         image = tf.io.read_file(path)
-        image = tf.image.decode_png(image)
+        image = tf.image.decode_png(image, channels=3)
         image = tf.cast(image, tf.float32)
-
         images.append(image)
-
     return images[0], images[1]
 
 
