@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+import datetime
 import glob
 import os
 import time
@@ -8,16 +9,11 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from IPython.display import clear_output
 from sklearn.model_selection import train_test_split
-
 from models.pix2pix import pix2pix_preprocessing as preprocessing
 
 
 class CycleGAN:
-    def __init__(self, *, img_width=512, img_height=256, epochs=200, save_path=None):
-        preprocessing.IMG_WIDTH = img_width
-        preprocessing.IMG_HEIGHT = img_height
-
-        self.epochs = epochs
+    def __init__(self):
         self.LAMBDA = 10
 
         self.generator_xy_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
@@ -34,13 +30,20 @@ class CycleGAN:
         self.discriminator_x = self.discriminator()
         self.discriminator_y = self.discriminator()
 
-        if save_path is not None:
-            self.save_path = save_path
-            if not os.path.exists(self.save_path):
-                os.makedirs(self.save_path)
+        # metrics for tensorboard
+        self.train_acc_x = tf.keras.metrics.BinaryAccuracy(name='x_accuracy', threshold=0.2)
+        self.train_acc_y = tf.keras.metrics.BinaryAccuracy(name='y_accuracy', threshold=0.2)
+        self.discx = tf.keras.metrics.Mean(name='discx_loss', dtype=tf.float32)
 
-        # metricas
-        
+        # tensorboard logs
+        current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+        train_log_dir = 'logs/gradient_tape/' + current_time + '/train'
+        self.train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+
+    @staticmethod
+    def set_image_dims(self, height, width):
+        preprocessing.IMG_HEIGHT = height
+        preprocessing.IMG_WIDTH = width
 
     # dataset creation function
     @staticmethod
@@ -62,7 +65,7 @@ class CycleGAN:
 
         return train_xy, test_xy
 
-    # Creación de la red
+    # network creation
     @staticmethod
     def downsample(filters, size, apply_batchnorm=True):
         initializer = tf.random_normal_initializer(0., 0.02)
@@ -72,7 +75,7 @@ class CycleGAN:
                                           kernel_initializer=initializer, use_bias=False))
 
         if apply_batchnorm:
-            result.add(tf.keras.layers.BatchNormalization())
+            result.add(InstanceNormalization())
 
         result.add(tf.keras.layers.LeakyReLU())
 
@@ -86,7 +89,7 @@ class CycleGAN:
         result.add(tf.keras.layers.Conv2DTranspose(filters, size, strides=2, padding='same',
                                                    kernel_initializer=initializer, use_bias=False))
 
-        result.add(tf.keras.layers.BatchNormalization())
+        result.add(InstanceNormalization())
 
         if apply_dropout:
             result.add(tf.keras.layers.Dropout(0.5))
@@ -148,9 +151,9 @@ class CycleGAN:
         initializer = tf.random_normal_initializer(0., 0.02)
 
         inp = tf.keras.layers.Input(shape=[None, None, 3], name='input_image')
-        tar = tf.keras.layers.Input(shape=[None, None, 3], name='target_image')
+        # tar = tf.keras.layers.Input(shape=[None, None, 3], name='target_image')
 
-        x = tf.keras.layers.concatenate([inp, tar])  # (bs, 256, 256, channels*2)
+        # x = tf.keras.layers.concatenate([inp, tar])  # (bs, 256, 256, channels*2)
 
         down1 = self.downsample(64, 4, apply_batchnorm=False)(inp)  # (bs, 128, 128, 64)
         down2 = self.downsample(128, 4)(down1)  # (bs, 64, 64, 128)
@@ -227,6 +230,11 @@ class CycleGAN:
             disc_x_loss = self.discriminator_loss(disc_real_x, disc_fake_x)
             disc_y_loss = self.discriminator_loss(disc_real_y, disc_fake_y)
 
+            # tensorboard values
+            self.train_acc_x(tf.ones_like(disc_real_x), disc_real_x)
+            self.train_acc_y(tf.ones_like(disc_fake_y), disc_real_y)
+            self.discx(disc_x_loss)
+
         # gradients
         gen_xy_gradients = tape.gradient(total_gen_xy_loss, self.generator_xy.trainable_variables)
         gen_yx_gradients = tape.gradient(total_gen_yx_loss, self.generator_yx.trainable_variables)
@@ -241,25 +249,35 @@ class CycleGAN:
         self.discriminator_x_optimizer.apply_gradients(zip(disc_x_gradients, self.discriminator_x.trainable_variables))
         self.discriminator_y_optimizer.apply_gradients(zip(disc_y_gradients, self.discriminator_y.trainable_variables))
 
-    def fit(self, train_ds, test_ds):
-        # Se toman imagenes para apreciar la evolucion del modelo
-        for (_, _), (test_x, test_y) in zip(train_ds.take(1), test_ds.take(1)):
-            plot_test_x = test_x
-            plot_test_y = test_y
+    def fit(self, train_ds, test_ds, save_path=None):
+        if save_path is not None:
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
 
         for epoch in range(self.epochs):
             start = time.time()
             # Train
             for image_x, image_y in train_ds:
                 self.train_step(image_x, image_y)
+                # writing to tensorboard
+                with self.train_summary_writer.as_default():
+                    tf.summary.scalar('x_accuracy', self.train_acc_x.result(), step=epoch)
+                    tf.summary.scalar('y_accuracy', self.train_acc_y.result(), step=epoch)
+                    tf.summary.scalar('discx_loss', self.discx.result(), step=epoch)
+
+            # reset states
+            self.train_acc_x.reset_states()
+            self.train_acc_y.reset_states()
+            self.discx.reset_states()
 
             clear_output(wait=True)
             print('Time taken for epoch {}: {:.2f}'.format(epoch+1, time.time() - start))
 
             # Imagenes
             if (epoch + 1) % 2 == 0 or epoch == 0 and self.save_path is not None:
-                self.generate_images(self.generator_xy, plot_test_x, f'{epoch}xy')
-                self.generate_images(self.generator_yx, plot_test_y, f'{epoch}yx')
+                for plot_test_x, plot_test_y in test_ds.take(1):
+                    self.generate_images(self.generator_xy, plot_test_x, f'{epoch}xy')
+                    self.generate_images(self.generator_yx, plot_test_y, f'{epoch}yx')
 
     # Generación de imágenes
     def generate_images(self, model, image, name):
@@ -279,11 +297,38 @@ class CycleGAN:
         plt.show()
 
 
+class InstanceNormalization(tf.keras.layers.Layer):
+    def __init__(self, epsilon=1e-5):
+        super(InstanceNormalization, self).__init__()
+        self.epsilon = epsilon
+
+    def build(self, input_shape):
+        self.scale = self.add_weight(
+            name='scale',
+            shape=input_shape[-1:],
+            initializer=tf.random_normal_initializer(1., 0.02),
+            trainable=True
+        )
+
+        self.offset = self.add_weight(
+            name='offset',
+            shape=input_shape[-1:],
+            initializer='zeros',
+            trainable=True
+        )
+
+    def call(self, x):
+        mean, variance = tf.nn.moments(x, axes=[1, 2], keepdims=True)
+        inv = tf.math.rsqrt(variance + self.epsilon)
+        normalized = (x - mean) * inv
+        return self.scale + normalized + self.offset
+
+
 if __name__ == "__main__":
     cyclegan = CycleGAN(save_path='C:/Users/Ceiec06/Documents/GitHub/ARQGAN/test/')
 
-    paths_fakes = glob.glob('C:/Users/Ceiec06/Documents/GitHub/CEIEC-GANs/greek_temples_dataset/ruinas/*.png')
-    paths_reals = glob.glob('C:/Users/Ceiec06/Documents/GitHub/ARQGAN/ruins_00/*.png')
+    paths_fakes = glob.glob('C:/Users/Ceiec06/Documents/GitHub/CEIEC-GANs/styleGAN/flowers/daisy/*.png')
+    paths_reals = glob.glob('C:/Users/Ceiec06/Documents/GitHub/CEIEC-GANs/styleGAN/hokusai/*.png')
 
     train, test = cyclegan.gen_dataset(paths_x=paths_reals, paths_y=paths_fakes)
     cyclegan.fit(train, test)
