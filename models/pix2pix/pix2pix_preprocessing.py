@@ -97,7 +97,8 @@ def show_image(image, size=(10, 10)):
     plt.show()
 
 
-def predict_single_image(model, path, size=(10, 10)):
+def predict_single_image(model, path, save_path, size=(10, 10), show=False):
     image = load_single_image(path)
     prediction = model(image, training=False)
-    show_image(prediction, size)
+    if show:
+        show_image(prediction, size)

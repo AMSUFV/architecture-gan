@@ -36,6 +36,7 @@ class Pix2Pix:
         self.discriminator = self.discriminator()
 
     # dataset creation function
+    @staticmethod
     def gen_dataset(self, *, input_path, real_path, repeat_real=1):
         BUFFER_SIZE = len(input_path)
         BATCH_SIZE = 1

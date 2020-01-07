@@ -10,67 +10,82 @@ import tensorflow as tf
 from IPython.display import clear_output
 
 from models.pix2pix import pix2pix_preprocessing as preprocessing
+from models.BaseModel import BaseModel
 
 
-class Model0:
+class Model0(BaseModel):
+    """Variación de pix2pix con un paso doble en el entrenamiento
     """
-    Variación de pix2pix con un paso doble en el entrenamiento
-    """
-    # methods:
-    # init(path_gen_weights=None, path_disc_weights=None) if not None, a path needs to be passed
-    # set_image_shape(width, height): processing.img_width = width etc
-    # build_generator(weights_path=None); if is not None, load model
-    # build_discriminator(same as above)
-    #
-    # def __init__(self, *, img_width=512, img_height=256, epochs=200, save_path=None, gen_model=None):
     def __init__(self, *, gen_path=None, disc_path=None):
+        self.generator, self.discriminator = self.set_weights(gen_path, disc_path)
 
-        if gen_path is not None:
-            self.generator = tf.keras.models.load_model(gen_path)
-        else:
-            self.generator = self.generator()
-            self.generator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
+        self.generator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
+        self.discriminator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
 
-        if disc_path is not None:
-            self.discriminator = tf.keras.models.load_model(disc_path)
-        else:
-            self.discriminator = self.discriminator()
-            self.discriminator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
+        self.LAMBDA = 100
+        self.SECOND_PASS_LAMBDA = 1.25
+        self.loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
-        # if both models are provided, its assumed there won't be training
+        # Metricas para el display
+        # TODO: integración con tensorboard
+        # Train
+        self.train_loss_disc = tf.keras.metrics.Mean(name='train_loss_disc')
+        self.train_loss_gen = tf.keras.metrics.Mean(name='train_loss_gen')
+
+        self.train_acc_real = tf.keras.metrics.BinaryAccuracy(name='train_acc_real', threshold=0.2)
+        self.train_acc_generated = tf.keras.metrics.BinaryAccuracy(name='train_acc_generated', threshold=0.2)
+
+        self.stats = pd.DataFrame(
+            columns=['train loss disc', 'train loss gen', 'train acc real', 'train acc generated'])
+
+        self.plot_train_loss_disc = []
+        self.plot_train_loss_gen = []
+        self.plot_train_acc_real = []
+        self.plot_train_acc_generated = []
+
+        # Test
+        self.test_loss = tf.keras.metrics.Mean(name='test_loss')
+
+        self.test_acc_real = tf.keras.metrics.BinaryAccuracy(name='test_acc_real', threshold=0.2)
+        self.test_acc_generated = tf.keras.metrics.BinaryAccuracy(name='test_acc_generated', threshold=0.2)
+
+    # Implementación de los métodos de la clase padre
+    def set_weights(self, gen_path, disc_path):
         if gen_path is not None and disc_path is not None:
-            self.LAMBDA = 100
-            self.SECOND_PASS_LAMBDA = 1.25
-            self.loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-            # Metricas para el display
-            # Train
-            self.train_loss_disc = tf.keras.metrics.Mean(name='train_loss_disc')
-            self.train_loss_gen = tf.keras.metrics.Mean(name='train_loss_gen')
-
-            self.train_acc_real = tf.keras.metrics.BinaryAccuracy(name='train_acc_real', threshold=0.2)
-            self.train_acc_generated = tf.keras.metrics.BinaryAccuracy(name='train_acc_generated', threshold=0.2)
-
-            # self.stats = pd.DataFrame(
-            #     columns=['train loss disc', 'train loss gen', 'train acc real', 'train acc generated'])
-
-            #         self.plot_train_loss_disc = []
-            #         self.plot_train_loss_gen = []
-            #         self.plot_train_acc_real = []
-            #         self.plot_train_acc_generated = []
-
-            # Test
-            self.test_loss = tf.keras.metrics.Mean(name='test_loss')
-
-            self.test_acc_real = tf.keras.metrics.BinaryAccuracy(name='test_acc_real', threshold=0.2)
-            self.test_acc_generated = tf.keras.metrics.BinaryAccuracy(name='test_acc_generated', threshold=0.2)
+            generator = tf.keras.models.load_model(gen_path)
+            discriminator = tf.keras.models.load_model(disc_path)
+        else:
+            generator = self.generator()
+            discriminator = self.discriminator()
+            self.save_weights(generator, 'initial_generator.h5')
+            self.save_weights(discriminator, 'initial_discriminator.h5')
+        return generator, discriminator
 
     @staticmethod
-    def set_image_shape(self, width, height):
+    def save_weights(model, name):
+        model.save(name)
+
+    def predict(self, path, save_path=None):
+        image = preprocessing.load_single_image(path)
+        prediction = self.generator(image, training=False)
+        if save_path is not None:
+            clear_output(wait=True)
+            plt.figure()
+            plt.imshow(prediction[0] * 0.5 + 0.5)
+            plt.axis('off')
+            plt.savefig(f'{save_path}/image.png', pad_inches=0, bbox_inches='tight')
+            plt.close()
+        else:
+            return prediction
+
+    @staticmethod
+    def set_image_shape(width, height):
         preprocessing.IMG_WIDTH = width
         preprocessing.IMG_HEIGHT = height
 
     @staticmethod
     def gen_dataset(*, input_path, real_path, repeat_real=1, batch_size=1):
+        # TODO: añadir documentación del método propio
         buffer_size = len(input_path)
 
         test_mask = ([False] * (len(real_path) // 100 * 8) + [True] * (len(real_path) // 100 * 2)) * 10
@@ -135,7 +150,6 @@ class Model0:
 
     def generator(self):
         down_stack = [
-            # (256, 512)
             self.downsample(64, 4, apply_batchnorm=False),
             self.downsample(128, 4),
             self.downsample(256, 4),
@@ -188,7 +202,7 @@ class Model0:
         inp = tf.keras.layers.Input(shape=[None, None, 3], name='input_image')
         tar = tf.keras.layers.Input(shape=[None, None, 3], name='target_image')
 
-        x = tf.keras.layers.concatenate([inp, tar])  # (bs, 256, 256, channels*2)
+        # x = tf.keras.layers.concatenate([inp, tar])  # (bs, 256, 256, channels*2)
 
         down1 = self.downsample(64, 4, apply_batchnorm=False)(inp)  # (bs, 128, 128, 64)
         down2 = self.downsample(128, 4)(down1)  # (bs, 64, 64, 128)
@@ -272,7 +286,7 @@ class Model0:
         self.train_acc_real(tf.ones_like(disc_real_output_first_pass), disc_real_output_first_pass)
         self.train_acc_generated(tf.zeros_like(disc_generated_output_second_pass), disc_generated_output_second_pass)
 
-    def fit(self, train_ds, test_ds, save_path=None):
+    def fit(self, train_ds, test_ds, epochs=100, save_path=None):
         if save_path is not None:
             if not os.path.exists(save_path):
                 os.makedirs(save_path)
@@ -284,7 +298,7 @@ class Model0:
             plot_test_input = test_input
             plot_test_target = test_target
 
-        for epoch in range(self.epochs):
+        for epoch in range(epochs):
             start = time.time()
             # Train
             for input_image, target in train_ds:
@@ -316,13 +330,13 @@ class Model0:
             # Imagenes
             if ((epoch + 1) % 5 == 0 or epoch == 0) and save_path is not None:
                 self.generate_images(self.generator, plot_train_input, plot_train_target, plot_test_input,
-                                     plot_test_target, epoch + 1, path)
+                                     plot_test_target, epoch + 1, save_path)
 
         self.stats.to_csv('stats_model0.csv', index=False)
 
     # Generación de imágenes
     @staticmethod
-    def generate_images(self, model, train_inp, train_tar, test_inp, test_tar, epoch, path):
+    def generate_images(model, train_inp, train_tar, test_inp, test_tar, epoch, path):
 
         train_images = [train_inp, train_tar, model(train_inp, training=False)]
         test_images = [test_inp, test_tar, model(test_inp, training=False)]
@@ -346,3 +360,9 @@ class Model0:
         clear_output(wait=True)
         plt.savefig(f'{path}/image_epoch{epoch}.png', pad_inches=None, bbox_inches='tight')
         plt.show()
+
+
+if __name__ == '__main__':
+    modelo = Model0(gen_path='initial_generator.h5', disc_path='initial_discriminator.h5')
+    modelo.predict('C:/Users/Ceiec06/Documents/GitHub/ARQGAN/ruins_00/1_Partenón.effectsResult.0000.png',
+                   'C:/Users/Ceiec06/Documents/GitHub/ARQGAN/test')

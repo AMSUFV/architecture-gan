@@ -331,4 +331,4 @@ if __name__ == "__main__":
     paths_reals = glob.glob('C:/Users/Ceiec06/Documents/GitHub/CEIEC-GANs/styleGAN/hokusai/*.png')
 
     train, test = cyclegan.gen_dataset(paths_x=paths_reals, paths_y=paths_fakes)
-    cyclegan.fit(train, test)
+    cyclegan.fit(train, test, save_path='test/')
