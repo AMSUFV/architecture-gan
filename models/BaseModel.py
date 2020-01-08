@@ -1,8 +1,9 @@
 class BaseModel:
     """Clase base de la que el resto de modelos heredan
 
-    Esta clase pretende forzar la implementación de unos métodos comunes entre modelos, obteniendo
-    así coherencia y similitud de uso entre los mismos
+    Esta clase pretende forzar la implementación de unos métodos comunes entre modelos (configuración de pesos,
+    generación del dataset, entrenamiento, validación, predicción, etc.), obteniendo así coherencia y similitud
+    de uso entre los mismos.
     """
     def set_weights(self, **kwargs):
         """Método para establecer los pesos de las redes empleadas
@@ -18,6 +19,20 @@ class BaseModel:
         """Método propio de cada modelo para generar su dataset
 
         Los parámetros de este método variaran entre diferentes modelos
+        """
+        raise NotImplementedError
+
+    def fit(self, train_ds, test_ds, epochs, **kwargs):
+        """Método de entrenamiento.
+
+        Se entrenará y validará el modelo con un datasets de entrenamiento y validación durante un número determinado
+        de épocas.
+        """
+        raise NotImplementedError
+
+    @staticmethod
+    def validate(**kwargs):
+        """Método de validación.
         """
         raise NotImplementedError
 

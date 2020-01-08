@@ -1,20 +1,14 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-import tensorflow as tf
-
-import os
 import time
-import matplotlib.pyplot as plt
-import numpy as np
-from IPython.display import clear_output
-
-import glob
-from random import shuffle
-
 from itertools import compress
 
-from models.pix2pix import pix2pix_preprocessing as preprocessing
+import matplotlib.pyplot as plt
+import tensorflow as tf
+from IPython.display import clear_output
+
 from models.BaseModel import BaseModel
+from models.pix2pix import pix2pix_preprocessing as preprocessing
 
 
 class Pix2Pix(BaseModel):
@@ -244,7 +238,7 @@ class Pix2Pix(BaseModel):
         self.discriminator_optimizer.apply_gradients(
             zip(discriminator_gradients, self.discriminator.trainable_variables))
 
-    def fit(self, train_ds, test_ds, epochs):
+    def fit(self, train_ds, test_ds, epochs, save_path=None):
         for epoch in range(epochs):
             start = time.time()
             # Train
@@ -256,6 +250,7 @@ class Pix2Pix(BaseModel):
             # easily seen.
             print('Time taken for epoch {} is {:.2f} sec\n'.format(epoch + 1, time.time() - start))
 
+            # TODO: Image generation
             # if (epoch + 1) % 5 == 0:
             #     for (train_input, train_target), (test_input, test_target) in zip(train_ds.take(1), test_ds.take(1)):
             #         self.generate_images(self.generator, train_input, train_target, test_input, test_target, epoch)

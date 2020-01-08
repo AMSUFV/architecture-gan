@@ -86,7 +86,13 @@ class Model0(BaseModel):
 
     @staticmethod
     def gen_dataset(*, input_path, real_path, repeat_real=1, batch_size=1):
-        # TODO: añadir documentación del método propio
+        """Generación del dataset. Orientado a la extracción de diferentes ángulos de templos griegos
+
+        Debido a la estructura y listado de las imágenes (fotografías de una rotación completa alrededor
+        de diferentes templos), es necesario extraer una serie de imágenes cada X grados para evitar el
+        data leaking y asegurarnos de que la red generaliza.
+
+        """
         buffer_size = len(input_path)
 
         test_mask = ([False] * (len(real_path) // 100 * 8) + [True] * (len(real_path) // 100 * 2)) * 10
@@ -330,14 +336,14 @@ class Model0(BaseModel):
 
             # Imagenes
             if ((epoch + 1) % 5 == 0 or epoch == 0) and save_path is not None:
-                self.generate_images(self.generator, plot_train_input, plot_train_target, plot_test_input,
+                self.validate(self.generator, plot_train_input, plot_train_target, plot_test_input,
                                      plot_test_target, epoch + 1, save_path)
 
         self.stats.to_csv('stats_model0.csv', index=False)
 
     # Generación de imágenes
     @staticmethod
-    def generate_images(model, train_inp, train_tar, test_inp, test_tar, epoch, path):
+    def validate(model, train_inp, train_tar, test_inp, test_tar, epoch, path):
 
         train_images = [train_inp, train_tar, model(train_inp, training=False)]
         test_images = [test_inp, test_tar, model(test_inp, training=False)]
