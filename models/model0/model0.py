@@ -22,9 +22,10 @@ class Model0(BaseModel):
         self.generator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
         self.discriminator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
 
+        self.loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+
         self.LAMBDA = 100
         self.SECOND_PASS_LAMBDA = 1.25
-        self.loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
         # Metricas para el display
         # TODO: integración con tensorboard
@@ -79,7 +80,7 @@ class Model0(BaseModel):
             return prediction
 
     @staticmethod
-    def set_image_shape(width, height):
+    def set_input_shape(width, height):
         preprocessing.IMG_WIDTH = width
         preprocessing.IMG_HEIGHT = height
 
