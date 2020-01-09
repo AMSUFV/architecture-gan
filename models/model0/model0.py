@@ -10,7 +10,7 @@ import tensorflow as tf
 from IPython.display import clear_output
 
 from models.pix2pix import pix2pix_preprocessing as preprocessing
-from models.BaseModel import BaseModel
+from models.basemodel import BaseModel
 
 
 class Model0(BaseModel):

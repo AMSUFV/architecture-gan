@@ -15,6 +15,26 @@ class BaseModel:
         raise NotImplementedError
 
     @staticmethod
+    def save_weights(model, name):
+        """Método para guardar los pesos de los modelos
+
+        Se empleará al inicializar los modelos si no se han provisto rutas a pesos iniciales; los
+        nuevos pesos se guardarán para futuras ejecuciones.
+        """
+        raise NotImplementedError
+
+    # @staticmethod
+    # def get_dataset(input_path, real_path, split=0.2):
+    #     """Método genérico de creación de datasets
+    #
+    #     :param input_path:
+    #     :param real_path:
+    #     :param split:
+    #     :return: train_dataset, test_dataset
+    #     """
+    #     raise NotImplementedError
+
+    @staticmethod
     def gen_dataset(**kwargs):
         """Método propio de cada modelo para generar su dataset
 
@@ -40,14 +60,5 @@ class BaseModel:
         """Método in-out; uso del modelo como tal
 
         Dado un input se obtendrá un output que podrá almacenarse
-        """
-        raise NotImplementedError
-
-    @staticmethod
-    def save_weights(model, name):
-        """Método para guardar los pesos de los modelos
-
-        Se empleará al inicializar los modelos si no se han provisto rutas a pesos iniciales; los
-        nuevos pesos se guardarán para futuras ejecuciones.
         """
         raise NotImplementedError
