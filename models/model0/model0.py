@@ -13,6 +13,7 @@ from models.pix2pix import pix2pix_preprocessing as preprocessing
 from models.basemodel import BaseModel
 
 
+# TODO: Heredar de pix2pix y sobreescribir el entrenamiento?
 class Model0(BaseModel):
     """Variación de pix2pix con un paso doble en el entrenamiento
     """

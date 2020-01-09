@@ -1,5 +1,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+import datetime
+
 import tensorflow as tf
 import time
 # creación del dataset
@@ -24,6 +26,14 @@ class Pix2Pix(BaseModel):
         self.loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
         self.LAMBDA = 100
+
+        # TODO: Integración con Tensorboard
+        # Tensorboard
+        # Métricas
+        self.train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
+        current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+        self.train_log_dir = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\gradient_tape\\' + current_time + r'\train'
+        self.train_summary_writer = tf.summary.create_file_writer(self.train_log_dir)
 
     # Creación de la red
     @staticmethod
@@ -178,17 +188,20 @@ class Pix2Pix(BaseModel):
 
     # dataset creation function
     @staticmethod
-    def gen_dataset(*, input_path, real_path, repeat_real=1):
+    def gen_dataset(input_path, real_path, repeat_real=1):
         """Generación del dataset. Orientado a la extracción de diferentes ángulos de templos griegos
 
         :param input_path: ruta a las imágenes de ruinas de templos
         :param real_path: ruta a las imágenes de templos completos
         :param repeat_real: el número de veces que las imágenes de templos completos se repiten; tantas
         como diferentes modelos de sus ruinas se tengan
-        :return:
+        :return: train_dataset, test_datset
         """
         buffer_size = len(input_path)
         batch_size = 1
+
+        input_path = glob.glob(input_path + r'\*.png')
+        real_path = glob.glob(real_path + r'\*.png')
 
         test_mask = ([False] * (len(real_path) // 100 * 8) + [True] * (len(real_path) // 100 * 2)) * 10
         train_mask = ([True] * (len(real_path) // 100 * 8) + [False] * (len(real_path) // 100 * 2)) * 10
@@ -217,6 +230,7 @@ class Pix2Pix(BaseModel):
 
         return train_dataset, test_dataset
 
+    # TODO: Considerar si esto se puede borrar; heredar de pix2pix y sobreescribir la obtención de dataset
     @staticmethod
     def get_dataset(input_path, real_path, split=0.2, file_shuffle=True):
         """Método genérico de creación de datasets
@@ -230,8 +244,8 @@ class Pix2Pix(BaseModel):
         buffer_size = min(len(input_path), len(real_path))
         batch_size = 1
 
-        input_path = glob.glob(input_path)
-        real_path = glob.glob(real_path)
+        input_path = glob.glob(input_path + '*')
+        real_path = glob.glob(real_path + '*')
 
         x_train, x_test, y_train, y_test = train_test_split(input_path, real_path, test_size=split)
 
@@ -269,8 +283,8 @@ class Pix2Pix(BaseModel):
         self.discriminator_optimizer.apply_gradients(
             zip(discriminator_gradients, self.discriminator.trainable_variables))
 
-    def validation_step(self, x, y):
-        pass
+        # Tensorboard
+        self.train_loss(disc_loss)
 
     def fit(self, train_ds, test_ds, epochs, save_path=None):
         for epoch in range(epochs):
@@ -279,6 +293,12 @@ class Pix2Pix(BaseModel):
             # Train
             for input_image, target in train_ds:
                 self.train_step(input_image, target)
+
+            # Tensorboard
+            with self.train_summary_writer.as_default():
+                tf.summary.scalar('loss', self.train_loss.result(), step=epoch)
+
+            self.train_loss.reset_states()
 
             # Validation
             # TODO: Validation
@@ -302,3 +322,10 @@ class Pix2Pix(BaseModel):
             plt.close()
         else:
             return prediction
+
+
+if __name__ == '__main__':
+    pix2pix = Pix2Pix()
+    train, test = pix2pix.gen_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\ruins\temple_0',
+                                      r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\ruins\temple_0_ruins_0')
+    pix2pix.fit(train, test, 20)
