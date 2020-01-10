@@ -31,9 +31,16 @@ class Pix2Pix(BaseModel):
         # Tensorboard
         # Métricas
         self.train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
+        self.val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
+
+        # Directorio
         current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+        # Train
         self.train_log_dir = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\gradient_tape\\' + current_time + r'\train'
         self.train_summary_writer = tf.summary.create_file_writer(self.train_log_dir)
+        # Validation
+        self.val_log_dir = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\gradient_tape\\' + current_time + r'\val'
+        self.val_summary_writer = tf.summary.create_file_writer(self.val_log_dir)
 
     # Creación de la red
     @staticmethod
@@ -188,7 +195,7 @@ class Pix2Pix(BaseModel):
 
     # dataset creation function
     @staticmethod
-    def gen_dataset(input_path, real_path, repeat_real=1):
+    def get_dataset(input_path, real_path, repeat_real=1):
         """Generación del dataset. Orientado a la extracción de diferentes ángulos de templos griegos
 
         :param input_path: ruta a las imágenes de ruinas de templos
@@ -230,7 +237,81 @@ class Pix2Pix(BaseModel):
 
         return train_dataset, test_dataset
 
-    # TODO: Considerar si esto se puede borrar; heredar de pix2pix y sobreescribir la obtención de dataset
+    # Training functions
+    @tf.function
+    def train_step(self, input_image, target):
+        with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
+            gen_output = self.generator(input_image, training=True)
+
+            disc_real_output = self.discriminator([input_image, target], training=True)
+            disc_generated_output = self.discriminator([input_image, gen_output], training=True)
+
+            gen_loss = self.generator_loss(disc_generated_output, gen_output, target)
+            disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
+
+        generator_gradients = gen_tape.gradient(gen_loss, self.generator.trainable_variables)
+        discriminator_gradients = disc_tape.gradient(disc_loss, self.discriminator.trainable_variables)
+
+        self.generator_optimizer.apply_gradients(zip(generator_gradients, self.generator.trainable_variables))
+        self.discriminator_optimizer.apply_gradients(
+            zip(discriminator_gradients, self.discriminator.trainable_variables))
+
+        # Tensorboard
+        self.train_loss(disc_loss)
+
+    def validate(self, test_in, test_out):
+        gen_output = self.generator(test_in, training=False)
+
+        disc_real_output = self.discriminator([test_in, test_out], training=False)
+        disc_generated_output = self.discriminator([test_in, gen_output], training=False)
+
+        gen_loss = self.generator_loss(disc_generated_output, gen_output, test_out)
+        disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
+
+        self.val_loss(disc_loss)
+
+    def fit(self, train_ds, test_ds, epochs, save_path=None):
+        for epoch in range(epochs):
+            start = time.time()
+
+            # Train
+            for input_image, target in train_ds:
+                self.train_step(input_image, target)
+
+            for input_image, target_image in test_ds:
+                self.validate(input_image, target_image)
+
+            # Tensorboard
+            with self.train_summary_writer.as_default():
+                tf.summary.scalar('loss', self.train_loss.result(), step=epoch)
+
+            with self.val_summary_writer.as_default():
+                tf.summary.scalar('loss', self.val_loss.result(), step=epoch)
+
+            self.train_loss.reset_states()
+            self.val_loss.reset_states()
+
+            # Validation
+            # TODO: Validation
+
+            print('Time taken for epoch {} is {:.2f} sec\n'.format(epoch + 1, time.time() - start))
+            # TODO: Image generation
+
+    def predict(self, path, save_path=None):
+        image = preprocessing.load_single_image(path)
+        prediction = self.generator(image, training=False)
+        if save_path is not None:
+            clear_output(wait=True)
+            plt.figure()
+            plt.imshow(prediction[0] * 0.5 + 0.5)
+            plt.axis('off')
+            plt.savefig(f'{save_path}/image.png', pad_inches=0, bbox_inches='tight')
+            plt.close()
+        else:
+            return prediction
+
+
+class OtherModel(Pix2Pix):
     @staticmethod
     def get_dataset(input_path, real_path, split=0.2, file_shuffle=True):
         """Método genérico de creación de datasets
@@ -264,68 +345,9 @@ class Pix2Pix(BaseModel):
 
         return train_dataset, test_dataset
 
-    # Training functions
-    @tf.function
-    def train_step(self, input_image, target):
-        with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
-            gen_output = self.generator(input_image, training=True)
-
-            disc_real_output = self.discriminator([input_image, target], training=True)
-            disc_generated_output = self.discriminator([input_image, gen_output], training=True)
-
-            gen_loss = self.generator_loss(disc_generated_output, gen_output, target)
-            disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
-
-        generator_gradients = gen_tape.gradient(gen_loss, self.generator.trainable_variables)
-        discriminator_gradients = disc_tape.gradient(disc_loss, self.discriminator.trainable_variables)
-
-        self.generator_optimizer.apply_gradients(zip(generator_gradients, self.generator.trainable_variables))
-        self.discriminator_optimizer.apply_gradients(
-            zip(discriminator_gradients, self.discriminator.trainable_variables))
-
-        # Tensorboard
-        self.train_loss(disc_loss)
-
-    def fit(self, train_ds, test_ds, epochs, save_path=None):
-        for epoch in range(epochs):
-            start = time.time()
-
-            # Train
-            for input_image, target in train_ds:
-                self.train_step(input_image, target)
-
-            # Tensorboard
-            with self.train_summary_writer.as_default():
-                tf.summary.scalar('loss', self.train_loss.result(), step=epoch)
-
-            self.train_loss.reset_states()
-
-            # Validation
-            # TODO: Validation
-
-            print('Time taken for epoch {} is {:.2f} sec\n'.format(epoch + 1, time.time() - start))
-            # TODO: Image generation
-
-    @staticmethod
-    def validate(model, ):
-        pass
-
-    def predict(self, path, save_path=None):
-        image = preprocessing.load_single_image(path)
-        prediction = self.generator(image, training=False)
-        if save_path is not None:
-            clear_output(wait=True)
-            plt.figure()
-            plt.imshow(prediction[0] * 0.5 + 0.5)
-            plt.axis('off')
-            plt.savefig(f'{save_path}/image.png', pad_inches=0, bbox_inches='tight')
-            plt.close()
-        else:
-            return prediction
-
 
 if __name__ == '__main__':
     pix2pix = Pix2Pix()
-    train, test = pix2pix.gen_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\ruins\temple_0',
+    train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\ruins\temple_0',
                                       r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\ruins\temple_0_ruins_0')
     pix2pix.fit(train, test, 20)

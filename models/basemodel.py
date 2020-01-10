@@ -23,19 +23,8 @@ class BaseModel:
         """
         raise NotImplementedError
 
-    # @staticmethod
-    # def get_dataset(input_path, real_path, split=0.2):
-    #     """Método genérico de creación de datasets
-    #
-    #     :param input_path:
-    #     :param real_path:
-    #     :param split:
-    #     :return: train_dataset, test_dataset
-    #     """
-    #     raise NotImplementedError
-
     @staticmethod
-    def gen_dataset(**kwargs):
+    def get_dataset(**kwargs):
         """Método propio de cada modelo para generar su dataset
 
         Los parámetros de este método variaran entre diferentes modelos
@@ -56,7 +45,7 @@ class BaseModel:
         """
         raise NotImplementedError
 
-    def predict(self, path, save_path=None):
+    def predict(self, **kwargs):
         """Método in-out; uso del modelo como tal
 
         Dado un input se obtendrá un output que podrá almacenarse

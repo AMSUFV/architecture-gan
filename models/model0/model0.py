@@ -11,6 +11,7 @@ from IPython.display import clear_output
 
 from models.pix2pix import pix2pix_preprocessing as preprocessing
 from models.basemodel import BaseModel
+from models.pix2pix.pix2pix import Pix2Pix
 
 
 # TODO: Heredar de pix2pix y sobreescribir el entrenamiento?
@@ -36,14 +37,6 @@ class Model0(BaseModel):
 
         self.train_acc_real = tf.keras.metrics.BinaryAccuracy(name='train_acc_real', threshold=0.2)
         self.train_acc_generated = tf.keras.metrics.BinaryAccuracy(name='train_acc_generated', threshold=0.2)
-
-        self.stats = pd.DataFrame(
-            columns=['train loss disc', 'train loss gen', 'train acc real', 'train acc generated'])
-
-        self.plot_train_loss_disc = []
-        self.plot_train_loss_gen = []
-        self.plot_train_acc_real = []
-        self.plot_train_acc_generated = []
 
         # Test
         self.test_loss = tf.keras.metrics.Mean(name='test_loss')
@@ -86,7 +79,7 @@ class Model0(BaseModel):
         preprocessing.IMG_HEIGHT = height
 
     @staticmethod
-    def gen_dataset(*, input_path, real_path, repeat_real=1, batch_size=1):
+    def get_dataset(*, input_path, real_path, repeat_real=1, batch_size=1):
         """Generación del dataset. Orientado a la extracción de diferentes ángulos de templos griegos
 
         Debido a la estructura y listado de las imágenes (fotografías de una rotación completa alrededor
@@ -324,11 +317,6 @@ class Model0(BaseModel):
                                   self.train_acc_generated.result() * 100,
                                   time.time() - start))
 
-            self.stats = self.stats.append(pd.DataFrame([[self.train_loss_disc.result(), self.train_loss_gen.result(),
-                                                          self.train_acc_real.result() * 100,
-                                                          self.train_acc_generated.result() * 100]],
-                                                        columns=self.stats.columns), ignore_index=True)
-
             self.train_loss_disc.reset_states()
             self.train_loss_gen.reset_states()
 
@@ -339,8 +327,6 @@ class Model0(BaseModel):
             if ((epoch + 1) % 5 == 0 or epoch == 0) and save_path is not None:
                 self.validate(self.generator, plot_train_input, plot_train_target, plot_test_input,
                                      plot_test_target, epoch + 1, save_path)
-
-        self.stats.to_csv('stats_model0.csv', index=False)
 
     # Generación de imágenes
     @staticmethod
