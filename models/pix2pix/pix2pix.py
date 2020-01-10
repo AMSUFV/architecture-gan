@@ -151,27 +151,6 @@ class Pix2Pix(BaseModel):
 
         return tf.keras.Model(inputs=inp, outputs=last)
 
-    # Metrics
-    # class metrics:
-    def discriminator_loss(self, disc_real_output, disc_generated_output):
-        real_loss = self.loss_object(tf.ones_like(disc_real_output), disc_real_output)
-
-        generated_loss = self.loss_object(tf.zeros_like(disc_generated_output), disc_generated_output)
-
-        total_disc_loss = real_loss + generated_loss
-
-        return total_disc_loss
-
-    def generator_loss(self, disc_generated_output, gen_output, target):
-        gan_loss = self.loss_object(tf.ones_like(disc_generated_output), disc_generated_output)
-
-        # mean absolute error
-        l1_loss = tf.reduce_mean(tf.abs(target - gen_output))
-
-        total_gen_loss = gan_loss + (self.LAMBDA * l1_loss)
-
-        return total_gen_loss
-
     # Implementación de los métodos de la clase padre
     def set_weights(self, gen_path, disc_path):
         if gen_path is not None and disc_path is not None:
@@ -237,6 +216,27 @@ class Pix2Pix(BaseModel):
 
         return train_dataset, test_dataset
 
+    # Metrics
+    # class metrics:
+    def discriminator_loss(self, disc_real_output, disc_generated_output):
+        real_loss = self.loss_object(tf.ones_like(disc_real_output), disc_real_output)
+
+        generated_loss = self.loss_object(tf.zeros_like(disc_generated_output), disc_generated_output)
+
+        total_disc_loss = real_loss + generated_loss
+
+        return total_disc_loss
+
+    def generator_loss(self, disc_generated_output, gen_output, target):
+        gan_loss = self.loss_object(tf.ones_like(disc_generated_output), disc_generated_output)
+
+        # mean absolute error
+        l1_loss = tf.reduce_mean(tf.abs(target - gen_output))
+
+        total_gen_loss = gan_loss + (self.LAMBDA * l1_loss)
+
+        return total_gen_loss
+
     # Training functions
     @tf.function
     def train_step(self, input_image, target):
@@ -292,10 +292,10 @@ class Pix2Pix(BaseModel):
             self.val_loss.reset_states()
 
             # Validation
-            # TODO: Validation
+            # TODO: Finish implementing validation
 
             print('Time taken for epoch {} is {:.2f} sec\n'.format(epoch + 1, time.time() - start))
-            # TODO: Image generation
+            # TODO: Image generation and integration with tensorflow (predict)
 
     def predict(self, path, save_path=None):
         image = preprocessing.load_single_image(path)
@@ -311,7 +311,7 @@ class Pix2Pix(BaseModel):
             return prediction
 
 
-class OtherModel(Pix2Pix):
+class StyleTransfer(Pix2Pix):
     @staticmethod
     def get_dataset(input_path, real_path, split=0.2, file_shuffle=True):
         """Método genérico de creación de datasets
