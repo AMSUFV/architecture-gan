@@ -5,14 +5,13 @@ import time
 from itertools import compress
 
 import matplotlib.pyplot as plt
-import pandas as pd
 import tensorflow as tf
 from IPython.display import clear_output
 
-from models.pix2pix import pix2pix_preprocessing as preprocessing
 from models.basemodel import BaseModel
-from models.pix2pix.pix2pix import Pix2Pix
+from models.pix2pix import pix2pix_preprocessing as preprocessing
 
+from models.pix2pix.pix2pix import CustomPix2Pix
 
 # TODO: Heredar de pix2pix y sobreescribir el entrenamiento?
 class Model0(BaseModel):
@@ -245,48 +244,6 @@ class Model0(BaseModel):
 
         return total_gen_loss
 
-    # Funciones de entrenamiento
-    @tf.function
-    def train_step(self, input_image, target):
-        with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
-            # Primer ciclo
-            gen_output_first_pass = self.generator(input_image, training=True)
-
-            disc_real_output_first_pass = self.discriminator([input_image, target], training=True)
-            disc_generated_output_first_pass = self.discriminator([input_image, gen_output_first_pass], training=True)
-
-            gen_loss_first_pass = self.generator_loss(disc_generated_output_first_pass, gen_output_first_pass, target)
-            disc_loss_first_pass = self.discriminator_loss(disc_real_output_first_pass,
-                                                           disc_generated_output_first_pass)
-
-            # Segundo ciclo
-            gen_output_second_pass = self.generator(gen_output_first_pass, training=True)
-
-            # disc_real_output_second_pass es igual al del primer ciclo
-            disc_generated_output_second_pass = self.discriminator([input_image, gen_output_second_pass], training=True)
-
-            gen_loss_second_pass = self.generator_loss(disc_generated_output_second_pass, gen_output_second_pass,
-                                                       target)
-            disc_loss_second_pass = self.discriminator_loss(disc_real_output_first_pass,
-                                                            disc_generated_output_second_pass)
-
-            gen_loss = gen_loss_first_pass + self.SECOND_PASS_LAMBDA * gen_loss_second_pass
-            disc_loss = disc_loss_first_pass + disc_loss_second_pass
-
-        generator_gradients = gen_tape.gradient(gen_loss, self.generator.trainable_variables)
-        discriminator_gradients = disc_tape.gradient(disc_loss, self.discriminator.trainable_variables)
-
-        self.generator_optimizer.apply_gradients(zip(generator_gradients, self.generator.trainable_variables))
-        self.discriminator_optimizer.apply_gradients(
-            zip(discriminator_gradients, self.discriminator.trainable_variables))
-
-        # Actualización de métricas
-        self.train_loss_disc(disc_loss)
-        self.train_loss_gen(gen_loss)
-
-        self.train_acc_real(tf.ones_like(disc_real_output_first_pass), disc_real_output_first_pass)
-        self.train_acc_generated(tf.zeros_like(disc_generated_output_second_pass), disc_generated_output_second_pass)
-
     def fit(self, train_ds, test_ds, epochs=100, save_path=None):
         if save_path is not None:
             if not os.path.exists(save_path):
@@ -354,6 +311,50 @@ class Model0(BaseModel):
         clear_output(wait=True)
         plt.savefig(f'{path}/image_epoch{epoch}.png', pad_inches=None, bbox_inches='tight')
         plt.show()
+
+
+class DoublePass(CustomPix2Pix):
+    # Funciones de entrenamiento
+    @tf.function
+    def train_step(self, input_image, target):
+        with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
+            # Primer ciclo
+            gen_output_first_pass = self.generator(input_image, training=True)
+
+            disc_real_output_first_pass = self.discriminator([input_image, target], training=True)
+            disc_generated_output_first_pass = self.discriminator([input_image, gen_output_first_pass], training=True)
+
+            gen_loss_first_pass = self.generator_loss(disc_generated_output_first_pass, gen_output_first_pass, target)
+            disc_loss_first_pass = self.discriminator_loss(disc_real_output_first_pass,
+                                                           disc_generated_output_first_pass)
+
+            # Segundo ciclo
+            gen_output_second_pass = self.generator(gen_output_first_pass, training=True)
+
+            # disc_real_output_second_pass es igual al del primer ciclo
+            disc_generated_output_second_pass = self.discriminator([input_image, gen_output_second_pass], training=True)
+
+            gen_loss_second_pass = self.generator_loss(disc_generated_output_second_pass, gen_output_second_pass,
+                                                       target)
+            disc_loss_second_pass = self.discriminator_loss(disc_real_output_first_pass,
+                                                            disc_generated_output_second_pass)
+
+            gen_loss = gen_loss_first_pass + self.SECOND_PASS_LAMBDA * gen_loss_second_pass
+            disc_loss = disc_loss_first_pass + disc_loss_second_pass
+
+        generator_gradients = gen_tape.gradient(gen_loss, self.generator.trainable_variables)
+        discriminator_gradients = disc_tape.gradient(disc_loss, self.discriminator.trainable_variables)
+
+        self.generator_optimizer.apply_gradients(zip(generator_gradients, self.generator.trainable_variables))
+        self.discriminator_optimizer.apply_gradients(
+            zip(discriminator_gradients, self.discriminator.trainable_variables))
+
+        # Actualización de métricas
+        self.train_loss_disc(disc_loss)
+        self.train_loss_gen(gen_loss)
+
+        self.train_acc_real(tf.ones_like(disc_real_output_first_pass), disc_real_output_first_pass)
+        self.train_acc_generated(tf.zeros_like(disc_generated_output_second_pass), disc_generated_output_second_pass)
 
 
 if __name__ == '__main__':

@@ -36,10 +36,10 @@ class Pix2Pix(BaseModel):
         # Directorio
         current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
         # Train
-        self.train_log_dir = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\gradient_tape\\' + current_time + r'\train'
+        self.train_log_dir = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix\\' + current_time + r'\train'
         self.train_summary_writer = tf.summary.create_file_writer(self.train_log_dir)
         # Validation
-        self.val_log_dir = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\gradient_tape\\' + current_time + r'\val'
+        self.val_log_dir = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix\\' + current_time + r'\val'
         self.val_summary_writer = tf.summary.create_file_writer(self.val_log_dir)
 
     # Creación de la red
@@ -172,47 +172,36 @@ class Pix2Pix(BaseModel):
         preprocessing.IMG_WIDTH = width
         preprocessing.IMG_HEIGHT = height
 
-    # dataset creation function
     @staticmethod
-    def get_dataset(input_path, real_path, repeat_real=1):
-        """Generación del dataset. Orientado a la extracción de diferentes ángulos de templos griegos
+    def get_dataset(input_path, real_path, split=0.2, file_shuffle=True):
+        """Método genérico de creación de datasets
 
-        :param input_path: ruta a las imágenes de ruinas de templos
-        :param real_path: ruta a las imágenes de templos completos
-        :param repeat_real: el número de veces que las imágenes de templos completos se repiten; tantas
-        como diferentes modelos de sus ruinas se tengan
-        :return: train_dataset, test_datset
+        :param input_path: ruta a la carpeta con los inputs de la red
+        :param real_path: ruta a la carpeta con los outputs esperados
+        :param split: porcentaje de division train/test
+        :param file_shuffle: barajar o no los archivos; igualar a  False si inputs y outputs guardan relación directa
+        :return: train_dataset, test_dataset
         """
-        buffer_size = len(input_path)
+        buffer_size = min(len(input_path), len(real_path))
         batch_size = 1
 
         input_path = glob.glob(input_path + r'\*.png')
         real_path = glob.glob(real_path + r'\*.png')
 
-        test_mask = ([False] * (len(real_path) // 100 * 8) + [True] * (len(real_path) // 100 * 2)) * 10
-        train_mask = ([True] * (len(real_path) // 100 * 8) + [False] * (len(real_path) // 100 * 2)) * 10
-
-        train_input = list(compress(input_path, train_mask * repeat_real))
-        train_real = list(compress(real_path, train_mask))
-
-        test_input = list(compress(input_path, test_mask * repeat_real))
-        test_real = list(compress(real_path, test_mask))
+        x_train, x_test, y_train, y_test = train_test_split(input_path, real_path, test_size=split)
 
         # train
-        input_dataset = tf.data.Dataset.list_files(train_input, shuffle=False)
-        real_datset = tf.data.Dataset.list_files(train_real, shuffle=False)
-        real_datset = real_datset.repeat(repeat_real)
+        input_dataset = tf.data.Dataset.list_files(x_train, shuffle=file_shuffle)
+        output_dataset = tf.data.Dataset.list_files(y_train, shuffle=file_shuffle)
 
-        train_dataset = tf.data.Dataset.zip((input_dataset, real_datset))
+        train_dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
         train_dataset = train_dataset.map(preprocessing.load_images_train).shuffle(buffer_size).batch(batch_size)
 
-        # test
-        test_input_ds = tf.data.Dataset.list_files(test_input, shuffle=False)
-        test_real_ds = tf.data.Dataset.list_files(test_real, shuffle=False)
-        test_real_ds = test_real_ds.repeat(repeat_real)
+        input_dataset = tf.data.Dataset.list_files(x_test, shuffle=False)
+        output_dataset = tf.data.Dataset.list_files(y_test, shuffle=False)
 
-        test_dataset = tf.data.Dataset.zip((test_input_ds, test_real_ds))
-        test_dataset = test_dataset.map(preprocessing.load_images_test).batch(batch_size)
+        test_dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
+        test_dataset = test_dataset.map(preprocessing.load_images_train).batch(batch_size)
 
         return train_dataset, test_dataset
 
@@ -285,8 +274,14 @@ class Pix2Pix(BaseModel):
             with self.train_summary_writer.as_default():
                 tf.summary.scalar('loss', self.train_loss.result(), step=epoch)
 
+                stack = self.get_tb_stack(train_ds)
+                tf.summary.image('train', stack, step=epoch)
+
             with self.val_summary_writer.as_default():
                 tf.summary.scalar('loss', self.val_loss.result(), step=epoch)
+
+                stack = self.get_tb_stack(test_ds)
+                tf.summary.image('validation', stack, step=epoch)
 
             self.train_loss.reset_states()
             self.val_loss.reset_states()
@@ -296,6 +291,16 @@ class Pix2Pix(BaseModel):
 
             print('Time taken for epoch {} is {:.2f} sec\n'.format(epoch + 1, time.time() - start))
             # TODO: Image generation and integration with tensorflow (predict)
+
+    def get_tb_stack(self, dataset):
+        for x, y in dataset.take(1):
+            train_x = x  # * 0.5 + 0.5
+            train_y = self.generator(x, training=False)  # * 0.5 + 0.5
+            ground_truth = y  # * 0.5 + 0.5
+            stack = tf.stack([train_x, train_y, ground_truth], axis=0) * 0.5 + 0.5
+            stack = tf.squeeze(stack)
+
+            return stack
 
     def predict(self, path, save_path=None):
         image = preprocessing.load_single_image(path)
@@ -311,43 +316,54 @@ class Pix2Pix(BaseModel):
             return prediction
 
 
-class StyleTransfer(Pix2Pix):
+class CustomPix2Pix(Pix2Pix):
+    # dataset creation function
     @staticmethod
-    def get_dataset(input_path, real_path, split=0.2, file_shuffle=True):
-        """Método genérico de creación de datasets
+    def get_dataset(input_path, real_path, repeat_real=1):
+        """Generación del dataset. Orientado a la extracción de diferentes ángulos de templos griegos
 
-        :param input_path: ruta a la carpeta con los inputs de la red
-        :param real_path: ruta a la carpeta con los outputs esperados
-        :param split: porcentaje de division train/test
-        :param file_shuffle: barajar o no los archivos; igualar a  False si inputs y outputs guardan relación directa
-        :return: train_dataset, test_dataset
+        :param input_path: ruta a las imágenes de ruinas de templos
+        :param real_path: ruta a las imágenes de templos completos
+        :param repeat_real: el número de veces que las imágenes de templos completos se repiten; tantas
+        como diferentes modelos de sus ruinas se tengan
+        :return: train_dataset, test_datset
         """
-        buffer_size = min(len(input_path), len(real_path))
+        buffer_size = len(input_path)
         batch_size = 1
 
-        input_path = glob.glob(input_path + '*')
-        real_path = glob.glob(real_path + '*')
+        input_path = glob.glob(input_path + r'\*.png')
+        real_path = glob.glob(real_path + r'\*.png')
 
-        x_train, x_test, y_train, y_test = train_test_split(input_path, real_path, test_size=split)
+        test_mask = ([False] * (len(real_path) // 100 * 8) + [True] * (len(real_path) // 100 * 2)) * 10
+        train_mask = ([True] * (len(real_path) // 100 * 8) + [False] * (len(real_path) // 100 * 2)) * 10
+
+        train_input = list(compress(input_path, train_mask * repeat_real))
+        train_real = list(compress(real_path, train_mask))
+
+        test_input = list(compress(input_path, test_mask * repeat_real))
+        test_real = list(compress(real_path, test_mask))
 
         # train
-        input_dataset = tf.data.Dataset.list_files(x_train, shuffle=file_shuffle)
-        output_dataset = tf.data.Dataset.list_files(y_train, shuffle=file_shuffle)
+        input_dataset = tf.data.Dataset.list_files(train_input, shuffle=False)
+        real_datset = tf.data.Dataset.list_files(train_real, shuffle=False)
+        real_datset = real_datset.repeat(repeat_real)
 
-        train_dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
+        train_dataset = tf.data.Dataset.zip((input_dataset, real_datset))
         train_dataset = train_dataset.map(preprocessing.load_images_train).shuffle(buffer_size).batch(batch_size)
 
-        input_dataset = tf.data.Dataset.list_files(x_test, shuffle=False)
-        output_dataset = tf.data.Dataset.list_files(y_test, shuffle=False)
+        # test
+        test_input_ds = tf.data.Dataset.list_files(test_input, shuffle=False)
+        test_real_ds = tf.data.Dataset.list_files(test_real, shuffle=False)
+        test_real_ds = test_real_ds.repeat(repeat_real)
 
-        test_dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
-        test_dataset = test_dataset.map(preprocessing.load_images_train).batch(batch_size)
+        test_dataset = tf.data.Dataset.zip((test_input_ds, test_real_ds))
+        test_dataset = test_dataset.map(preprocessing.load_images_test).batch(batch_size)
 
         return train_dataset, test_dataset
 
 
 if __name__ == '__main__':
-    pix2pix = Pix2Pix()
-    train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\ruins\temple_0',
-                                      r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\ruins\temple_0_ruins_0')
-    pix2pix.fit(train, test, 20)
+    pix2pix = CustomPix2Pix()
+    train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\CEIEC-GANs\greek_temples_dataset\Colores',
+                                      r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\ruins\temple_0')
+    pix2pix.fit(train, test, 100)
