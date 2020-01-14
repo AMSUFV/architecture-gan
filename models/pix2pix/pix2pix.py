@@ -34,13 +34,32 @@ class Pix2Pix(BaseModel):
         self.val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
 
         # Directorio
+        log_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix'
+        self.train_summary_writer, self.val_summary_writer = self.set_logdirs(log_path)
+        # current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+        # # Train
+        # train_log_dir = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix\\' + current_time + r'\train'
+        # self.train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+        # # Validation
+        # val_log_dir = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix\\' + current_time + r'\val'
+        # self.val_summary_writer = tf.summary.create_file_writer(val_log_dir)
+
+    @staticmethod
+    def set_logdirs(path):
+        """
+        Establece dónde se guardarán los logs del entrenamiento
+
+        :param path: String. Path a la carpeta donde se guardarán los logs del entrenamiento
+        :return: file writer, file writer
+        """
         current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-        # Train
-        self.train_log_dir = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix\\' + current_time + r'\train'
-        self.train_summary_writer = tf.summary.create_file_writer(self.train_log_dir)
-        # Validation
-        self.val_log_dir = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix\\' + current_time + r'\val'
-        self.val_summary_writer = tf.summary.create_file_writer(self.val_log_dir)
+        train_log_dir = path + r'\\' + current_time + r'\train'
+        val_log_dir = path + r'\\' + current_time + r'\val'
+
+        train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+        val_summary_writer = tf.summary.create_file_writer(val_log_dir)
+
+        return train_summary_writer, val_summary_writer
 
     # Creación de la red
     @staticmethod
@@ -151,7 +170,7 @@ class Pix2Pix(BaseModel):
 
         return tf.keras.Model(inputs=inp, outputs=last)
 
-    # Implementación de los métodos de la clase padre
+    # Parent class implementation
     def set_weights(self, gen_path, disc_path):
         if gen_path is not None and disc_path is not None:
             generator = tf.keras.models.load_model(gen_path)
@@ -187,6 +206,8 @@ class Pix2Pix(BaseModel):
 
         input_path = glob.glob(input_path + r'\*.png')
         real_path = glob.glob(real_path + r'\*.png')
+        input_path = input_path[:buffer_size]
+        real_path = real_path[:buffer_size]
 
         x_train, x_test, y_train, y_test = train_test_split(input_path, real_path, test_size=split)
 
@@ -217,25 +238,25 @@ class Pix2Pix(BaseModel):
         return total_disc_loss
 
     def generator_loss(self, disc_generated_output, gen_output, target):
-        gan_loss = self.loss_object(tf.ones_like(disc_generated_output), disc_generated_output)
+        g_loss = self.loss_object(tf.ones_like(disc_generated_output), disc_generated_output)
 
         # mean absolute error
         l1_loss = tf.reduce_mean(tf.abs(target - gen_output))
 
-        total_gen_loss = gan_loss + (self.LAMBDA * l1_loss)
+        total_gen_loss = g_loss + (self.LAMBDA * l1_loss)
 
         return total_gen_loss
 
     # Training functions
     @tf.function
-    def train_step(self, input_image, target):
+    def train_step(self, train_x, train_y):
         with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
-            gen_output = self.generator(input_image, training=True)
+            gen_output = self.generator(train_x, training=True)
 
-            disc_real_output = self.discriminator([input_image, target], training=True)
-            disc_generated_output = self.discriminator([input_image, gen_output], training=True)
+            disc_real_output = self.discriminator([train_x, train_y], training=True)
+            disc_generated_output = self.discriminator([train_x, gen_output], training=True)
 
-            gen_loss = self.generator_loss(disc_generated_output, gen_output, target)
+            gen_loss = self.generator_loss(disc_generated_output, gen_output, train_y)
             disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
 
         generator_gradients = gen_tape.gradient(gen_loss, self.generator.trainable_variables)
@@ -261,12 +282,10 @@ class Pix2Pix(BaseModel):
 
     def fit(self, train_ds, test_ds, epochs, save_path=None):
         for epoch in range(epochs):
-            start = time.time()
-
             # Train
             for input_image, target in train_ds:
                 self.train_step(input_image, target)
-
+            # Validation
             for input_image, target_image in test_ds:
                 self.validate(input_image, target_image)
 
@@ -286,22 +305,17 @@ class Pix2Pix(BaseModel):
             self.train_loss.reset_states()
             self.val_loss.reset_states()
 
-            # Validation
-            # TODO: Finish implementing validation
-
-            print('Time taken for epoch {} is {:.2f} sec\n'.format(epoch + 1, time.time() - start))
-            # TODO: Image generation and integration with tensorflow (predict)
-
     def get_tb_stack(self, dataset):
         for x, y in dataset.take(1):
-            train_x = x  # * 0.5 + 0.5
-            train_y = self.generator(x, training=False)  # * 0.5 + 0.5
-            ground_truth = y  # * 0.5 + 0.5
-            stack = tf.stack([train_x, train_y, ground_truth], axis=0) * 0.5 + 0.5
+            # x is the input
+            # y is the ground truth
+            generated = self.generator(x, training=False)
+            stack = tf.stack([x, generated, y], axis=0) * 0.5 + 0.5
             stack = tf.squeeze(stack)
 
             return stack
 
+    # TODO: Revisit this
     def predict(self, path, save_path=None):
         image = preprocessing.load_single_image(path)
         prediction = self.generator(image, training=False)
@@ -362,8 +376,50 @@ class CustomPix2Pix(Pix2Pix):
         return train_dataset, test_dataset
 
 
+class StylePix2Pix(Pix2Pix):
+    def generator_loss(self, disc_generated_output):
+        gen_loss = self.loss_object(tf.ones_like(disc_generated_output), disc_generated_output)
+        return gen_loss
+
+    @tf.function
+    def train_step(self, train_x, train_y):
+        with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
+            gen_output = self.generator(train_x, training=True)
+
+            disc_real_output = self.discriminator([train_x, train_y], training=True)
+            disc_generated_output = self.discriminator([train_x, gen_output], training=True)
+
+            gen_loss = self.generator_loss(disc_generated_output)
+            disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
+
+        generator_gradients = gen_tape.gradient(gen_loss, self.generator.trainable_variables)
+        discriminator_gradients = disc_tape.gradient(disc_loss, self.discriminator.trainable_variables)
+
+        self.generator_optimizer.apply_gradients(zip(generator_gradients, self.generator.trainable_variables))
+        self.discriminator_optimizer.apply_gradients(
+            zip(discriminator_gradients, self.discriminator.trainable_variables))
+
+        # Tensorboard
+        self.train_loss(disc_loss)
+
+    def validate(self, test_in, test_out):
+        gen_output = self.generator(test_in, training=False)
+
+        disc_real_output = self.discriminator([test_in, test_out], training=False)
+        disc_generated_output = self.discriminator([test_in, gen_output], training=False)
+
+        gen_loss = self.generator_loss(disc_generated_output)
+        disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
+
+        self.val_loss(disc_loss)
+
+
 if __name__ == '__main__':
-    pix2pix = CustomPix2Pix()
-    train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\CEIEC-GANs\greek_temples_dataset\Colores',
-                                      r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\ruins\temple_0')
-    pix2pix.fit(train, test, 100)
+    pix2pix = Pix2Pix()
+    # pix2pix = CustomPix2Pix()
+    train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\ruins\temple_0',
+                                      r'C:\Users\Ceiec06\Documents\GitHub\CEIEC-GANs\greek_temples_dataset\Colores')
+
+    # train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\ruins\temple_0',
+    #                                   r'C:\Users\Ceiec06\Documents\GitHub\CEIEC-GANs\greek_temples_dataset\restored_png')
+    pix2pix.fit(train, test, 50)
