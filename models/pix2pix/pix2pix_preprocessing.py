@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 
 IMG_HEIGHT = 256
 IMG_WIDTH = 512
+RESIZE_FACTOR = 10
 
 
 def load(input_path, real_path):
@@ -43,8 +44,8 @@ def random_crop(input_image, real_image):
 def random_jitter(input_image, real_image):
     # En el codigo original hacen un resize al 111% del tamaño, 256 a 286, se hace lo propio
     # con las dimensiones de nuestra imagen
-    resized_width = IMG_WIDTH + IMG_WIDTH // 10
-    resized_height = IMG_HEIGHT + IMG_HEIGHT // 10
+    resized_width = IMG_WIDTH + IMG_WIDTH // RESIZE_FACTOR
+    resized_height = IMG_HEIGHT + IMG_HEIGHT // RESIZE_FACTOR
     # Resize
     input_image, real_image = resize(input_image, real_image, resized_height, resized_width)
     # Random crop

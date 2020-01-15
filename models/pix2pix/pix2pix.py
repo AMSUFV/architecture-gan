@@ -31,18 +31,11 @@ class Pix2Pix(BaseModel):
         # Tensorboard
         # Métricas
         self.train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
-        self.val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
+        self.train_real_acc = tf.keras.metrics.BinaryAccuracy('train_real_accuracy')
+        self.train_gen_acc = tf.keras.metrics.BinaryAccuracy('train_gen_accuracys')
 
-        # Directorio
-        log_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix'
-        self.train_summary_writer, self.val_summary_writer = self.set_logdirs(log_path)
-        # current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-        # # Train
-        # train_log_dir = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix\\' + current_time + r'\train'
-        # self.train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-        # # Validation
-        # val_log_dir = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix\\' + current_time + r'\val'
-        # self.val_summary_writer = tf.summary.create_file_writer(val_log_dir)
+        self.val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
+        self.val_acc = tf.keras.metrics.BinaryAccuracy('val_accuracy')
 
     @staticmethod
     def set_logdirs(path):
@@ -94,7 +87,7 @@ class Pix2Pix(BaseModel):
 
         return result
 
-    def generator(self):
+    def build_generator(self):
         down_stack = [
             self.downsample(64, 4, apply_batchnorm=False),
             self.downsample(128, 4),
@@ -142,15 +135,15 @@ class Pix2Pix(BaseModel):
 
         return tf.keras.Model(inputs=inputs, outputs=x)
 
-    def discriminator(self):
+    def build_discriminator(self):
         initializer = tf.random_normal_initializer(0., 0.02)
 
         inp = tf.keras.layers.Input(shape=[None, None, 3], name='input_image')
         tar = tf.keras.layers.Input(shape=[None, None, 3], name='target_image')
 
-        # x = tf.keras.layers.concatenate([inp, tar])  # (bs, 256, 256, channels*2)
+        x = tf.keras.layers.concatenate([inp, tar])  # (bs, 256, 256, channels*2)
 
-        down1 = self.downsample(64, 4, apply_batchnorm=False)(inp)  # (bs, 128, 128, 64)
+        down1 = self.downsample(64, 4, apply_batchnorm=False)(x)  # (bs, 128, 128, 64)
         down2 = self.downsample(128, 4)(down1)  # (bs, 64, 64, 128)
         down3 = self.downsample(256, 4)(down2)  # (bs, 32, 32, 256)
 
@@ -168,7 +161,7 @@ class Pix2Pix(BaseModel):
         last = tf.keras.layers.Conv2D(1, 4, strides=1,
                                       kernel_initializer=initializer)(zero_pad2)  # (bs, 30, 30, 1)
 
-        return tf.keras.Model(inputs=inp, outputs=last)
+        return tf.keras.Model(inputs=[inp, tar], outputs=last)
 
     # Parent class implementation
     def set_weights(self, gen_path, disc_path):
@@ -176,8 +169,8 @@ class Pix2Pix(BaseModel):
             generator = tf.keras.models.load_model(gen_path)
             discriminator = tf.keras.models.load_model(disc_path)
         else:
-            generator = self.generator()
-            discriminator = self.discriminator()
+            generator = self.build_generator()
+            discriminator = self.build_discriminator()
             self.save_weights(generator, 'initial_generator.h5')
             self.save_weights(discriminator, 'initial_discriminator.h5')
         return generator, discriminator
@@ -268,6 +261,8 @@ class Pix2Pix(BaseModel):
 
         # Tensorboard
         self.train_loss(disc_loss)
+        self.train_real_acc(tf.ones_like(disc_real_output), disc_real_output)
+        self.train_step(tf.zeros_like(disc_generated_output), disc_generated_output)
 
     def validate(self, test_in, test_out):
         gen_output = self.generator(test_in, training=False)
@@ -279,8 +274,12 @@ class Pix2Pix(BaseModel):
         disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
 
         self.val_loss(disc_loss)
+        self.val_acc(tf.ones_like(disc_generated_output), disc_generated_output)
 
-    def fit(self, train_ds, test_ds, epochs, save_path=None):
+    def fit(self, train_ds, test_ds, epochs, log_path=None, save_path=None):
+        if log_path is not None:
+            train_summary_writer, val_summary_writer = self.set_logdirs(log_path)
+
         for epoch in range(epochs):
             # Train
             for input_image, target in train_ds:
@@ -289,21 +288,25 @@ class Pix2Pix(BaseModel):
             for input_image, target_image in test_ds:
                 self.validate(input_image, target_image)
 
-            # Tensorboard
-            with self.train_summary_writer.as_default():
-                tf.summary.scalar('loss', self.train_loss.result(), step=epoch)
+            if log_path is not None:
+                # Tensorboard
+                with train_summary_writer.as_default():
+                    tf.summary.scalar('loss', self.train_loss.result(), step=epoch)
+                    tf.summary.scalar('accuracy', self.train_real_acc.result(), step=epoch)
+                    tf.summary.scalar('accuracy', self.train_gen_acc.result(), step=epoch)
+                    # images
+                    stack = self.get_tb_stack(train_ds)
+                    tf.summary.image('train', stack, step=epoch)
 
-                stack = self.get_tb_stack(train_ds)
-                tf.summary.image('train', stack, step=epoch)
+                with val_summary_writer.as_default():
+                    tf.summary.scalar('loss', self.val_loss.result(), step=epoch)
+                    tf.summary.scalar('accuracy', self.val_acc.result(), step=epoch)
+                    # images
+                    stack = self.get_tb_stack(test_ds)
+                    tf.summary.image('validation', stack, step=epoch)
 
-            with self.val_summary_writer.as_default():
-                tf.summary.scalar('loss', self.val_loss.result(), step=epoch)
-
-                stack = self.get_tb_stack(test_ds)
-                tf.summary.image('validation', stack, step=epoch)
-
-            self.train_loss.reset_states()
-            self.val_loss.reset_states()
+                self.train_loss.reset_states()
+                self.val_loss.reset_states()
 
     def get_tb_stack(self, dataset):
         for x, y in dataset.take(1):
@@ -377,17 +380,42 @@ class CustomPix2Pix(Pix2Pix):
 
 
 class StylePix2Pix(Pix2Pix):
+    def build_discriminator(self):
+        initializer = tf.random_normal_initializer(0., 0.02)
+
+        inp = tf.keras.layers.Input(shape=[None, None, 3], name='input_image')
+
+        down1 = self.downsample(64, 4, apply_batchnorm=False)(inp)
+        down2 = self.downsample(128, 4)(down1)
+        down3 = self.downsample(256, 4)(down2)
+
+        zero_pad1 = tf.keras.layers.ZeroPadding2D()(down3)
+        conv = tf.keras.layers.Conv2D(512, 4, strides=1,
+                                      kernel_initializer=initializer,
+                                      use_bias=False)(zero_pad1)
+
+        norm = tf.keras.layers.BatchNormalization()(conv)
+        # norm = InstanceNormalization()(conv)
+
+        leaky_relu = tf.keras.layers.LeakyReLU()(norm)
+
+        zero_pad2 = tf.keras.layers.ZeroPadding2D()(leaky_relu)  # (bs, 33, 33, 512)
+
+        last = tf.keras.layers.Conv2D(1, 4, strides=1,
+                                      kernel_initializer=initializer)(zero_pad2)  # (bs, 30, 30, 1)
+
+        return tf.keras.Model(inputs=inp, outputs=last)
+
     def generator_loss(self, disc_generated_output):
-        gen_loss = self.loss_object(tf.ones_like(disc_generated_output), disc_generated_output)
-        return gen_loss
+        return self.loss_object(tf.ones_like(disc_generated_output), disc_generated_output)
 
     @tf.function
     def train_step(self, train_x, train_y):
         with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
             gen_output = self.generator(train_x, training=True)
 
-            disc_real_output = self.discriminator([train_x, train_y], training=True)
-            disc_generated_output = self.discriminator([train_x, gen_output], training=True)
+            disc_real_output = self.discriminator(train_y, training=True)
+            disc_generated_output = self.discriminator(gen_output, training=True)
 
             gen_loss = self.generator_loss(disc_generated_output)
             disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
@@ -405,8 +433,8 @@ class StylePix2Pix(Pix2Pix):
     def validate(self, test_in, test_out):
         gen_output = self.generator(test_in, training=False)
 
-        disc_real_output = self.discriminator([test_in, test_out], training=False)
-        disc_generated_output = self.discriminator([test_in, gen_output], training=False)
+        disc_real_output = self.discriminator(test_out, training=False)
+        disc_generated_output = self.discriminator(gen_output, training=False)
 
         gen_loss = self.generator_loss(disc_generated_output)
         disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
@@ -414,12 +442,40 @@ class StylePix2Pix(Pix2Pix):
         self.val_loss(disc_loss)
 
 
+class InstanceNormalization(tf.keras.layers.Layer):
+    def __init__(self, epsilon=1e-5):
+        super(InstanceNormalization, self).__init__()
+        self.epsilon = epsilon
+
+    def build(self, input_shape):
+        self.scale = self.add_weight(
+            name='scale',
+            shape=input_shape[-1:],
+            initializer=tf.random_normal_initializer(1., 0.02),
+            trainable=True
+        )
+
+        self.offset = self.add_weight(
+            name='offset',
+            shape=input_shape[-1:],
+            initializer='zeros',
+            trainable=True
+        )
+
+    def call(self, x):
+        mean, variance = tf.nn.moments(x, axes=[1, 2], keepdims=True)
+        inv = tf.math.rsqrt(variance + self.epsilon)
+        normalized = (x - mean) * inv
+        return self.scale + normalized + self.offset
+
+
 if __name__ == '__main__':
-    pix2pix = Pix2Pix()
-    # pix2pix = CustomPix2Pix()
-    train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\ruins\temple_0',
+    # pix2pix = Pix2Pix()
+    pix2pix = CustomPix2Pix()
+    preprocessing.RESIZE_FACTOR = 3
+    train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples\temple_0',
                                       r'C:\Users\Ceiec06\Documents\GitHub\CEIEC-GANs\greek_temples_dataset\Colores')
 
     # train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\ruins\temple_0',
     #                                   r'C:\Users\Ceiec06\Documents\GitHub\CEIEC-GANs\greek_temples_dataset\restored_png')
-    pix2pix.fit(train, test, 50)
+    pix2pix.fit(train, test, 100, log_path=r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix')
