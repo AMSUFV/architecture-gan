@@ -291,16 +291,17 @@ class Pix2Pix(BaseModel):
 
             with self.train_summary_writer.as_default():
                 tf.summary.scalar('loss', self.train_loss.result(), step=epoch)
-                tf.summary.scalar('train accuracy', self.train_real_acc.result(), step=epoch)
-                tf.summary.scalar('train accuracy', self.train_gen_acc.result(), step=epoch)
+                tf.summary.scalar('accuracy real', self.train_real_acc.result(), step=epoch)
+                tf.summary.scalar('accuracy generated', self.train_gen_acc.result(), step=epoch)
                 # images
                 stack = self.get_tb_stack(train_ds)
                 tf.summary.image('train', stack, step=epoch)
 
             with self.val_summary_writer.as_default():
                 tf.summary.scalar('loss', self.val_loss.result(), step=epoch)
-                tf.summary.scalar('val accuracy', self.val_gen_acc.result(), step=epoch)
-                tf.summary.scalar('val accuracy', self.val_real_acc.result(), step=epoch)
+                tf.summary.scalar('accuracy real', self.val_real_acc.result(), step=epoch)
+                tf.summary.scalar('accuracy generated', self.val_gen_acc.result(), step=epoch)
+
                 # images
                 stack = self.get_tb_stack(test_ds)
                 tf.summary.image('validation', stack, step=epoch)
@@ -339,6 +340,26 @@ class Pix2Pix(BaseModel):
 
 
 class CustomPix2Pix(Pix2Pix):
+    def get_complete_datset(self, temples, ruins_per_temple=1):
+        """
+        Este método asume una estructura de archivos en la que los templos completos están en una carpeta llamada
+        temples y llamados temple_0, temple_1, etc, y sus ruinas en la carpeta temples_ruins
+        :param temples:
+        :param ruins_per_temple:
+        :return:
+        """
+        for i, temple in enumerate(temples):
+            output_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples\\' + temple
+            input_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples_ruins\\' + temple
+            if i == 0:
+                train_dataset, val_dataset = self.get_dataset(input_path, output_path, ruins_per_temple)
+            else:
+                tr, val = self.get_dataset(input_path, output_path, ruins_per_temple)
+                train_dataset = train_dataset.concatenate(tr)
+                val_dataset = val_dataset.concatenate(val)
+
+        return train_dataset, val_dataset
+
     # dataset creation function
     @staticmethod
     def get_dataset(input_path, real_path, repeat_real=1):
@@ -346,14 +367,14 @@ class CustomPix2Pix(Pix2Pix):
 
         :param input_path: ruta a las imágenes de ruinas de templos
         :param real_path: ruta a las imágenes de templos completos
-        :param repeat_real: el número de veces que las imágenes de templos completos se repiten; tantas
-        como diferentes modelos de sus ruinas se tengan
+        :param repeat_real: el número de veces que las imágenes de templos completos se repiten; tantas como diferentes
+                            modelos de sus ruinas se tengan
         :return: train_dataset, test_datset
         """
         buffer_size = len(input_path)
         batch_size = 1
 
-        input_path = glob.glob(input_path + r'\*.png')
+        input_path = glob.glob(input_path + r'*\*.png')
         real_path = glob.glob(real_path + r'\*.png')
 
         test_mask = ([False] * (len(real_path) // 100 * 8) + [True] * (len(real_path) // 100 * 2)) * 10
@@ -476,13 +497,14 @@ class InstanceNormalization(tf.keras.layers.Layer):
 
 if __name__ == '__main__':
     pix2pix = CustomPix2Pix()
-    preprocessing.RESIZE_FACTOR = 3
+    # preprocessing.RESIZE_FACTOR = 3
     # train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples\temple_0',
     #                                   r'C:\Users\Ceiec06\Documents\GitHub\CEIEC-GANs\greek_temples_dataset\Colores')
 
     # train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\ruins\temple_0',
     #                                   r'C:\Users\Ceiec06\Documents\GitHub\CEIEC-GANs\greek_temples_dataset\restored_png')
 
-    train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples_ruins\temple_0_ruins_0',
-                                      r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples\temple_0')
+    # train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples_ruins\temple_0_ruins_0',
+    #                                   r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples\temple_0')
+    train, test = pix2pix.get_complete_datset(temples=['temple_0', 'temple_1'], ruins_per_temple=2)
     pix2pix.fit(train, test, 100)
