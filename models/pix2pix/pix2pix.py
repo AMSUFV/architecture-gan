@@ -29,13 +29,16 @@ class Pix2Pix(BaseModel):
 
         # TODO: Integración con Tensorboard
         # Tensorboard
+        log_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix'
+        self.train_summary_writer, self.val_summary_writer = self.set_logdirs(log_path)
         # Métricas
         self.train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
         self.train_real_acc = tf.keras.metrics.BinaryAccuracy('train_real_accuracy')
-        self.train_gen_acc = tf.keras.metrics.BinaryAccuracy('train_gen_accuracys')
+        self.train_gen_acc = tf.keras.metrics.BinaryAccuracy('train_gen_accuracy')
 
         self.val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
-        self.val_acc = tf.keras.metrics.BinaryAccuracy('val_accuracy')
+        self.val_gen_acc = tf.keras.metrics.BinaryAccuracy('val_gen_accuracy')
+        self.val_real_acc = tf.keras.metrics.BinaryAccuracy('val_real_accuracy')
 
     @staticmethod
     def set_logdirs(path):
@@ -262,7 +265,7 @@ class Pix2Pix(BaseModel):
         # Tensorboard
         self.train_loss(disc_loss)
         self.train_real_acc(tf.ones_like(disc_real_output), disc_real_output)
-        self.train_step(tf.zeros_like(disc_generated_output), disc_generated_output)
+        self.train_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
 
     def validate(self, test_in, test_out):
         gen_output = self.generator(test_in, training=False)
@@ -274,39 +277,41 @@ class Pix2Pix(BaseModel):
         disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
 
         self.val_loss(disc_loss)
-        self.val_acc(tf.ones_like(disc_generated_output), disc_generated_output)
+        self.val_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
+        self.val_real_acc(tf.ones_like(disc_real_output), disc_real_output)
 
-    def fit(self, train_ds, test_ds, epochs, log_path=None, save_path=None):
-        if log_path is not None:
-            train_summary_writer, val_summary_writer = self.set_logdirs(log_path)
-
+    def fit(self, train_ds, test_ds, epochs, save_path=None):
         for epoch in range(epochs):
             # Train
             for input_image, target in train_ds:
                 self.train_step(input_image, target)
-            # Validation
+            # # Validation
             for input_image, target_image in test_ds:
                 self.validate(input_image, target_image)
 
-            if log_path is not None:
-                # Tensorboard
-                with train_summary_writer.as_default():
-                    tf.summary.scalar('loss', self.train_loss.result(), step=epoch)
-                    tf.summary.scalar('accuracy', self.train_real_acc.result(), step=epoch)
-                    tf.summary.scalar('accuracy', self.train_gen_acc.result(), step=epoch)
-                    # images
-                    stack = self.get_tb_stack(train_ds)
-                    tf.summary.image('train', stack, step=epoch)
+            with self.train_summary_writer.as_default():
+                tf.summary.scalar('loss', self.train_loss.result(), step=epoch)
+                tf.summary.scalar('train accuracy', self.train_real_acc.result(), step=epoch)
+                tf.summary.scalar('train accuracy', self.train_gen_acc.result(), step=epoch)
+                # images
+                stack = self.get_tb_stack(train_ds)
+                tf.summary.image('train', stack, step=epoch)
 
-                with val_summary_writer.as_default():
-                    tf.summary.scalar('loss', self.val_loss.result(), step=epoch)
-                    tf.summary.scalar('accuracy', self.val_acc.result(), step=epoch)
-                    # images
-                    stack = self.get_tb_stack(test_ds)
-                    tf.summary.image('validation', stack, step=epoch)
+            with self.val_summary_writer.as_default():
+                tf.summary.scalar('loss', self.val_loss.result(), step=epoch)
+                tf.summary.scalar('val accuracy', self.val_gen_acc.result(), step=epoch)
+                tf.summary.scalar('val accuracy', self.val_real_acc.result(), step=epoch)
+                # images
+                stack = self.get_tb_stack(test_ds)
+                tf.summary.image('validation', stack, step=epoch)
 
-                self.train_loss.reset_states()
-                self.val_loss.reset_states()
+            self.train_loss.reset_states()
+            self.train_gen_acc.reset_states()
+            self.train_real_acc.reset_states()
+
+            self.val_loss.reset_states()
+            self.val_gen_acc.reset_states()
+            self.val_real_acc.reset_states()
 
     def get_tb_stack(self, dataset):
         for x, y in dataset.take(1):
@@ -470,12 +475,14 @@ class InstanceNormalization(tf.keras.layers.Layer):
 
 
 if __name__ == '__main__':
-    # pix2pix = Pix2Pix()
     pix2pix = CustomPix2Pix()
     preprocessing.RESIZE_FACTOR = 3
-    train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples\temple_0',
-                                      r'C:\Users\Ceiec06\Documents\GitHub\CEIEC-GANs\greek_temples_dataset\Colores')
+    # train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples\temple_0',
+    #                                   r'C:\Users\Ceiec06\Documents\GitHub\CEIEC-GANs\greek_temples_dataset\Colores')
 
     # train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\ruins\temple_0',
     #                                   r'C:\Users\Ceiec06\Documents\GitHub\CEIEC-GANs\greek_temples_dataset\restored_png')
-    pix2pix.fit(train, test, 100, log_path=r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix')
+
+    train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples_ruins\temple_0_ruins_0',
+                                      r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples\temple_0')
+    pix2pix.fit(train, test, 100)
