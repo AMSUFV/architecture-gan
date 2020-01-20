@@ -14,94 +14,11 @@ from IPython.display import clear_output
 # modelo base y preprocesamiento
 from models.basemodel import BaseModel
 from models.pix2pix import pix2pix_preprocessing as preprocessing
-
-
-class MetricLogger:
-    """
-    Para mantener el principio de responsabilidad única se implementa un logger de métricas, el cual se encargará de
-    recoger y escribir las métricas seleccionadas en los logs.
-    Para emplear esta clase, crear un nuevo MetricLogger en el init, elegir  y las métricas que se quieren emplear a
-    través de add_metric
-    """
-    def __init__(self, log_dir='logs'):
-        """
-        Se inicializa indicándole en qué directorio se guardarán los logs. Por defecto se guardarán en el directorio
-        logs.
-
-        :param log_dir: String. Ruta a donde se guardarán los logs.
-        """
-
-        # Un diccionario para entrenamiento y otro para validación
-        self.metrics = {'train': dict(), 'validation': dict()}
-        # File writers
-        train_writer, val_writer = self.set_logdirs(log_dir)
-        self.writers = {'train': train_writer, 'validation': val_writer}
-
-    @staticmethod
-    def set_logdirs(path):
-        """
-        Establece dónde se guardarán los logs del entrenamiento
-
-        :param path: String. Path a la carpeta donde se guardarán los logs del entrenamiento
-        :return: file writer, file writer
-        """
-        current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-        train_log_dir = path + r'\\' + current_time + r'\train'
-        val_log_dir = path + r'\\' + current_time + r'\val'
-
-        train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-        val_summary_writer = tf.summary.create_file_writer(val_log_dir)
-
-        return train_summary_writer, val_summary_writer
-
-    def add_metric(self, dataset, tag, value):
-        """
-        Método para añadir métricas escalares.
-
-        :param dataset: String; train o validation. Dataset al que pertenecen las métricas
-        :param tag: String. Tag de la métrica; en Tensorboard se agruparán en función del tag.
-        :param value: tf.keras.metrics.*. Métrica escalar a loggear (Mean, BinaryAccuracy, etc).
-        """
-
-        self.metrics[dataset][tag] = value
-
-    def update_metric(self, dataset, tag, new_value):
-        self.metrics[dataset][tag](new_value)
-
-    def write_metrics(self, dataset, epoch):
-        """
-        Método para escribir en archivo las métricas seguidas.
-
-        :param dataset: String; train o validation. Dataset al que pertenecen las métricas
-        :param epoch: int. Step en la gráfica; correspondiente con la época
-        """
-
-        with self.writers[dataset].as_default():
-            for tag, value in self.metrics[dataset].keys(), self.metrics[dataset].values():
-                tf.summary.scalar(tag, value.result(), step=epoch)
-
-    def write_metric(self, dataset, tag, value, epoch):
-        """
-        Método para escribir métricas no incluidas en los diccionarios de train o validation por no ser escalares o por
-        tener una casúistica diferente.
-        De momento solo soporta el tipo imagen.
-
-        :param dataset: String; train o validation. Dataset al que pertenecen las métricas
-        :param value: tf image stack
-        :param tag: String. Tag de la métrica; en Tensorboard se agruparán en función del tag.
-        :param epoch: int. Step en la gráfica; correspondiente con la época
-        """
-
-        with self.writers[dataset].as_default():
-            tf.summary.image(tag, value, step=epoch)
-
-    def reset_metrics(self, dataset):
-        for value in self.metrics[dataset].values():
-            value.reset_states()
+from models.metric_logger import MetricLogger
 
 
 class Pix2Pix(BaseModel):
-    def __init__(self, *, gen_path=None, disc_path=None):
+    def __init__(self, *, gen_path=None, disc_path=None, keep_logs=False, log_dir='logs'):
         self.generator, self.discriminator = self.set_weights(gen_path, disc_path)
 
         self.generator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
@@ -112,7 +29,11 @@ class Pix2Pix(BaseModel):
         self.LAMBDA = 100
 
         # TODO: Single responsibility; sacar las métricas
-        self.metric_logger = MetricLogger(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix')
+        if keep_logs:
+            self.metric_logger = MetricLogger(log_dir=log_dir, default_metrics=True)
+        else:
+            self.metric_logger = None
+        # self.metric_logger = MetricLogger(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix')
 
         # Tensorboard
         # log_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix'
@@ -349,9 +270,13 @@ class Pix2Pix(BaseModel):
             zip(discriminator_gradients, self.discriminator.trainable_variables))
 
         # Tensorboard
+        if self.metric_logger is not None:
+            self.metric_logger.update_metric('train', 'loss', disc_loss)
+            self.metric_logger.update_metric('train', 'accuracy')
+
         self.train_loss(disc_loss)
-        self.train_acc
-        # self.train_real_acc(tf.ones_like(disc_real_output), disc_real_output)
+        self.train_acc(tf.ones_like(disc_real_output), disc_real_output)
+        # self.train_real_acc
         # self.train_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
 
     def validate(self, test_in, test_out):
