@@ -475,7 +475,7 @@ class StylePix2Pix(Pix2Pix):
 
 
 if __name__ == '__main__':
-    pix2pix = CustomPix2Pix(log_dir='logs/custom_pix2pix')
+    pix2pix = CustomPix2Pix(log_dir=r'logs\\custom_pix2pix')
     # preprocessing.RESIZE_FACTOR = 3
     # train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples\temple_0',
     #                                   r'C:\Users\Ceiec06\Documents\GitHub\CEIEC-GANs\greek_temples_dataset\Colores')
@@ -485,5 +485,5 @@ if __name__ == '__main__':
 
     # train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples_ruins\temple_0_ruins_0',
     #                                   r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples\temple_0')
-    train, test = pix2pix.get_complete_datset(temples=['temple_0', 'temple_1'], ruins_per_temple=2)
+    train, test = pix2pix.get_complete_datset(temples=['temple_0'], ruins_per_temple=2)
     pix2pix.fit(train, test, 100)
