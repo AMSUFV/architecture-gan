@@ -58,7 +58,6 @@ class MetricLogger:
             self.metrics[dataset] = values
         return wrapper
 
-
     def add_metric(self, dataset: str, tag: str, value):
         """
         Método para añadir métricas escalares. Ej:
@@ -71,14 +70,14 @@ class MetricLogger:
 
         self.metrics[dataset][tag] = value
 
-    def update_metric(self, dataset: str, tag: str, new_value):
+    def update_metric(self, dataset: str, tag: str, value, **kwargs):
         """
         Método para actualizar las métricas. Si la métrica no está en las recogidas se le asignará un valor en función
         de la etiqueta.
 
         :param dataset: String; train o validation.
         :param tag: String. Tag de la métrica; en Tensorboard se agruparán en función del tag.
-        :param new_value: Valor actualizado para la métrica.
+        :param value: Valor actualizado para la métrica.
         :return:
         """
         if tag not in self.metrics[dataset].keys():
@@ -87,7 +86,7 @@ class MetricLogger:
             elif 'acc' in tag:
                 self.metrics[dataset][tag] = tf.keras.metrics.BinaryAccuracy()
 
-        self.metrics[dataset][tag](new_value)
+        self.metrics[dataset][tag](value)
 
     def write_metrics(self, dataset: str, epoch: int):
         """

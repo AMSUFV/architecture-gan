@@ -325,7 +325,7 @@ class InstanceNormalization(tf.keras.layers.Layer):
 
 
 if __name__ == "__main__":
-    cyclegan = CycleGAN(save_path='C:/Users/Ceiec06/Documents/GitHub/ARQGAN/test/')
+    cyclegan = CycleGAN(save_path='/test/')
 
     paths_fakes = glob.glob('C:/Users/Ceiec06/Documents/GitHub/CEIEC-GANs/styleGAN/flowers/daisy/*.png')
     paths_reals = glob.glob('C:/Users/Ceiec06/Documents/GitHub/CEIEC-GANs/styleGAN/hokusai/*.png')

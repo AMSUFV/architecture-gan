@@ -11,7 +11,7 @@ from IPython.display import clear_output
 from models.basemodel import BaseModel
 from models.pix2pix import pix2pix_preprocessing as preprocessing
 
-from models.pix2pix.pix2pix import CustomPix2Pix
+from models.pix2pix import CustomPix2Pix
 
 # TODO: Heredar de pix2pix y sobreescribir el entrenamiento?
 class Model0(BaseModel):
@@ -358,6 +358,6 @@ class DoublePass(CustomPix2Pix):
 
 
 if __name__ == '__main__':
-    modelo = Model0(gen_path='initial_generator.h5', disc_path='initial_discriminator.h5')
+    modelo = Model0(gen_path='model0/initial_generator.h5', disc_path='model0/initial_discriminator.h5')
     modelo.predict('C:/Users/Ceiec06/Documents/GitHub/ARQGAN/ruins_00/1_Partenón.effectsResult.0000.png',
                    'C:/Users/Ceiec06/Documents/GitHub/ARQGAN/test')

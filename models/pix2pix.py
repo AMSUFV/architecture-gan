@@ -8,17 +8,15 @@ import time
 import glob
 from itertools import compress
 from sklearn.model_selection import train_test_split
-# imágenes
-import matplotlib.pyplot as plt
-from IPython.display import clear_output
+
 # modelo base y preprocesamiento
-from models.basemodel import BaseModel
-from models.pix2pix import pix2pix_preprocessing as preprocessing
-from models.metric_logger import MetricLogger
+from models.utils import pix2pix_preprocessing as preprocessing
+from models.utils.basemodel import BaseModel
+from models.utils.metric_logger import MetricLogger
 
 
 class Pix2Pix(BaseModel):
-    def __init__(self, *, gen_path=None, disc_path=None, keep_logs=False, log_dir='logs'):
+    def __init__(self, *, gen_path=None, disc_path=None, log_dir='logs'):
         self.generator, self.discriminator = self.set_weights(gen_path, disc_path)
 
         self.generator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
@@ -29,23 +27,23 @@ class Pix2Pix(BaseModel):
         self.LAMBDA = 100
 
         # TODO: Single responsibility; sacar las métricas
-        if keep_logs:
-            self.metric_logger = MetricLogger(log_dir=log_dir, default_metrics=True)
-        else:
-            self.metric_logger = None
+        # if keep_logs:
+        #     self.metric_logger = MetricLogger(log_dir=log_dir, default_metrics=True)
+        # else:
+        #     self.metric_logger = None
         # self.metric_logger = MetricLogger(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix')
 
         # Tensorboard
         # log_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix'
-        # self.train_summary_writer, self.val_summary_writer = self.set_logdirs(log_path)
-        # # Métricas
-        # self.train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
-        # self.train_real_acc = tf.keras.metrics.BinaryAccuracy('train_real_accuracy')
-        # self.train_gen_acc = tf.keras.metrics.BinaryAccuracy('train_gen_accuracy')
-        #
-        # self.val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
-        # self.val_gen_acc = tf.keras.metrics.BinaryAccuracy('val_gen_accuracy')
-        # self.val_real_acc = tf.keras.metrics.BinaryAccuracy('val_real_accuracy')
+        self.train_summary_writer, self.val_summary_writer = self.set_logdirs(log_dir)
+        # Métricas
+        self.train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
+        self.train_real_acc = tf.keras.metrics.BinaryAccuracy('train_real_accuracy')
+        self.train_gen_acc = tf.keras.metrics.BinaryAccuracy('train_gen_accuracy')
+
+        self.val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
+        self.val_gen_acc = tf.keras.metrics.BinaryAccuracy('val_gen_accuracy')
+        self.val_real_acc = tf.keras.metrics.BinaryAccuracy('val_real_accuracy')
 
     @staticmethod
     def set_logdirs(path):
@@ -270,14 +268,13 @@ class Pix2Pix(BaseModel):
             zip(discriminator_gradients, self.discriminator.trainable_variables))
 
         # Tensorboard
-        if self.metric_logger is not None:
-            self.metric_logger.update_metric('train', 'loss', disc_loss)
-            self.metric_logger.update_metric('train', 'accuracy')
+        # if self.metric_logger is not None:
+        #     self.metric_logger.update_metric('train', 'loss', disc_loss)
+        #     self.metric_logger.update_metric('train', 'accuracy')
 
         self.train_loss(disc_loss)
-        self.train_acc(tf.ones_like(disc_real_output), disc_real_output)
-        # self.train_real_acc
-        # self.train_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
+        self.train_real_acc(tf.ones_like(disc_real_output), disc_real_output)
+        self.train_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
 
     def validate(self, test_in, test_out):
         gen_output = self.generator(test_in, training=False)
@@ -317,13 +314,13 @@ class Pix2Pix(BaseModel):
                 # images
                 stack = self.get_tb_stack(test_ds)
                 tf.summary.image('validation', stack, step=epoch)
-
-            # Tensorboard
-            self.metric_logger.write_metrics('train', epoch)
-            self.metric_logger.write_metrics('validation', epoch)
-
-            self.metric_logger.reset_metrics('train')
-            self.metric_logger.reset_metrics('validation')
+            #
+            # # Tensorboard
+            # self.metric_logger.write_metrics('train', epoch)
+            # self.metric_logger.write_metrics('validation', epoch)
+            #
+            # self.metric_logger.reset_metrics('train')
+            # self.metric_logger.reset_metrics('validation')
 
             # self.train_loss.reset_states()
             # self.train_gen_acc.reset_states()
@@ -345,17 +342,7 @@ class Pix2Pix(BaseModel):
 
     # TODO: Revisit this
     def predict(self, path, save_path=None):
-        image = preprocessing.load_single_image(path)
-        prediction = self.generator(image, training=False)
-        if save_path is not None:
-            clear_output(wait=True)
-            plt.figure()
-            plt.imshow(prediction[0] * 0.5 + 0.5)
-            plt.axis('off')
-            plt.savefig(f'{save_path}/image.png', pad_inches=0, bbox_inches='tight')
-            plt.close()
-        else:
-            return prediction
+        pass
 
 
 class CustomPix2Pix(Pix2Pix):
@@ -368,8 +355,8 @@ class CustomPix2Pix(Pix2Pix):
         :return:
         """
         for i, temple in enumerate(temples):
-            output_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples\\' + temple
-            input_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples_ruins\\' + temple
+            output_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples\\' + temple
+            input_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples_ruins\\' + temple
             if i == 0:
                 train_dataset, val_dataset = self.get_dataset(input_path, output_path, ruins_per_temple)
             else:
@@ -487,35 +474,8 @@ class StylePix2Pix(Pix2Pix):
         self.val_loss(disc_loss)
 
 
-class InstanceNormalization(tf.keras.layers.Layer):
-    def __init__(self, epsilon=1e-5):
-        super(InstanceNormalization, self).__init__()
-        self.epsilon = epsilon
-
-    def build(self, input_shape):
-        self.scale = self.add_weight(
-            name='scale',
-            shape=input_shape[-1:],
-            initializer=tf.random_normal_initializer(1., 0.02),
-            trainable=True
-        )
-
-        self.offset = self.add_weight(
-            name='offset',
-            shape=input_shape[-1:],
-            initializer='zeros',
-            trainable=True
-        )
-
-    def call(self, x):
-        mean, variance = tf.nn.moments(x, axes=[1, 2], keepdims=True)
-        inv = tf.math.rsqrt(variance + self.epsilon)
-        normalized = (x - mean) * inv
-        return self.scale + normalized + self.offset
-
-
 if __name__ == '__main__':
-    pix2pix = CustomPix2Pix()
+    pix2pix = CustomPix2Pix(log_dir='logs/custom_pix2pix')
     # preprocessing.RESIZE_FACTOR = 3
     # train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples\temple_0',
     #                                   r'C:\Users\Ceiec06\Documents\GitHub\CEIEC-GANs\greek_temples_dataset\Colores')
