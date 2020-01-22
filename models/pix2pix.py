@@ -346,17 +346,19 @@ class Pix2Pix(BaseModel):
 
 
 class CustomPix2Pix(Pix2Pix):
-    def get_complete_datset(self, temples, ruins_per_temple=1):
+    def get_complete_datset(self, temples, ruins_per_temple=1, color_in='', color_out=''):
         """
         Este método asume una estructura de archivos en la que los templos completos están en una carpeta llamada
         temples y llamados temple_0, temple_1, etc, y sus ruinas en la carpeta temples_ruins
+        :param color_out:
+        :param color_in:
         :param temples:
         :param ruins_per_temple:
         :return:
         """
         for i, temple in enumerate(temples):
-            output_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples\\' + temple
-            input_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples_ruins\\' + temple
+            input_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples_ruins\\' + color_in + temple
+            output_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples\\' + color_out + temple
             if i == 0:
                 train_dataset, val_dataset = self.get_dataset(input_path, output_path, ruins_per_temple)
             else:
@@ -368,11 +370,11 @@ class CustomPix2Pix(Pix2Pix):
 
     # dataset creation function
     @staticmethod
-    def get_dataset(input_path, real_path, repeat_real=1):
+    def get_dataset(input_path, output_path, repeat_real=1):
         """Generación del dataset. Orientado a la extracción de diferentes ángulos de templos griegos
 
         :param input_path: ruta a las imágenes de ruinas de templos
-        :param real_path: ruta a las imágenes de templos completos
+        :param output_path: ruta a las imágenes de templos completos
         :param repeat_real: el número de veces que las imágenes de templos completos se repiten; tantas como diferentes
                             modelos de sus ruinas se tengan
         :return: train_dataset, test_datset
@@ -381,16 +383,16 @@ class CustomPix2Pix(Pix2Pix):
         batch_size = 1
 
         input_path = glob.glob(input_path + r'*\*.png')
-        real_path = glob.glob(real_path + r'\*.png')
+        output_path = glob.glob(output_path + r'\*.png')
 
-        test_mask = ([False] * (len(real_path) // 100 * 8) + [True] * (len(real_path) // 100 * 2)) * 10
-        train_mask = ([True] * (len(real_path) // 100 * 8) + [False] * (len(real_path) // 100 * 2)) * 10
+        test_mask = ([False] * (len(output_path) // 100 * 8) + [True] * (len(output_path) // 100 * 2)) * 10
+        train_mask = ([True] * (len(output_path) // 100 * 8) + [False] * (len(output_path) // 100 * 2)) * 10
 
         train_input = list(compress(input_path, train_mask * repeat_real))
-        train_real = list(compress(real_path, train_mask))
+        train_real = list(compress(output_path, train_mask))
 
         test_input = list(compress(input_path, test_mask * repeat_real))
-        test_real = list(compress(real_path, test_mask))
+        test_real = list(compress(output_path, test_mask))
 
         # train
         input_dataset = tf.data.Dataset.list_files(train_input, shuffle=False)
@@ -475,7 +477,8 @@ class StylePix2Pix(Pix2Pix):
 
 
 if __name__ == '__main__':
-    pix2pix = CustomPix2Pix(log_dir=r'logs\\custom_pix2pix')
+    pix2pix = CustomPix2Pix(gen_path='initial_generator.h5', disc_path='initial_discriminator.h5',
+                            log_dir=r'logs\\custom_pix2pix')
     # preprocessing.RESIZE_FACTOR = 3
     # train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples\temple_0',
     #                                   r'C:\Users\Ceiec06\Documents\GitHub\CEIEC-GANs\greek_temples_dataset\Colores')
@@ -485,5 +488,6 @@ if __name__ == '__main__':
 
     # train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples_ruins\temple_0_ruins_0',
     #                                   r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples\temple_0')
-    train, test = pix2pix.get_complete_datset(temples=['temple_0'], ruins_per_temple=2)
+    train, test = pix2pix.get_complete_datset(temples=['temple_0'], ruins_per_temple=1, color_in='colors_',
+                                              color_out='colors_')
     pix2pix.fit(train, test, 100)
