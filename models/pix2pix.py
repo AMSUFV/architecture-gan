@@ -346,19 +346,39 @@ class Pix2Pix(BaseModel):
 
 
 class CustomPix2Pix(Pix2Pix):
-    def get_complete_datset(self, temples, ruins_per_temple=1, color_in='', color_out=''):
+    def get_complete_datset(self, temples, ruins_per_temple=1, mode='ruins_to_temples'):
         """
         Este método asume una estructura de archivos en la que los templos completos están en una carpeta llamada
         temples y llamados temple_0, temple_1, etc, y sus ruinas en la carpeta temples_ruins
-        :param color_out:
-        :param color_in:
+        :param mode:
         :param temples:
         :param ruins_per_temple:
         :return:
         """
+        color_in = ''
+        color_out = ''
+        modes = ['segment', 'invsegment', 'ruins_to_temples']
+        if mode not in modes:
+            raise Exception('mode not supported; supported modes are segment, invsegment and ruins_to_temples')
+        # segment: segment real to colors
+        # desegment: desegment colors to real
+        # ruins_to_temples
+
         for i, temple in enumerate(temples):
-            input_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples_ruins\\' + color_in + temple
-            output_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples\\' + color_out + temple
+
+            # default: ruins to temples
+            dataset_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\\'
+
+            if mode == 'segment':
+                input_path = dataset_path + r'temples*\\' + temple + '*'
+                output_path = dataset_path + r'colors*\colors_' + temple + '*'
+            elif mode == 'invsegment':
+                input_path = dataset_path + r'colors*\colors_' + temple + '*'
+                output_path = dataset_path + r'temples*\\' + temple + '*'
+            elif mode == 'ruins_to_temples':
+                input_path = dataset_path + r'temples_ruins\\' + temple + '*'
+                output_path = dataset_path + r'temples\\' + temple
+
             if i == 0:
                 train_dataset, val_dataset = self.get_dataset(input_path, output_path, ruins_per_temple)
             else:
@@ -382,8 +402,10 @@ class CustomPix2Pix(Pix2Pix):
         buffer_size = len(input_path)
         batch_size = 1
 
-        input_path = glob.glob(input_path + r'*\*.png')
+        input_path = glob.glob(input_path + r'\*.png')
         output_path = glob.glob(output_path + r'\*.png')
+
+        buffer_size = min(len(input_path), len(output_path))
 
         test_mask = ([False] * (len(output_path) // 100 * 8) + [True] * (len(output_path) // 100 * 2)) * 10
         train_mask = ([True] * (len(output_path) // 100 * 8) + [False] * (len(output_path) // 100 * 2)) * 10
@@ -488,6 +510,5 @@ if __name__ == '__main__':
 
     # train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples_ruins\temple_0_ruins_0',
     #                                   r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples\temple_0')
-    train, test = pix2pix.get_complete_datset(temples=['temple_0'], ruins_per_temple=1, color_in='colors_',
-                                              color_out='colors_')
+    train, test = pix2pix.get_complete_datset(temples=['temple_0'], ruins_per_temple=1, mode='segment')
     pix2pix.fit(train, test, 100)
