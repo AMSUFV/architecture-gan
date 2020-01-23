@@ -1,7 +1,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import datetime
-
+import numpy as np
 import tensorflow as tf
 import time
 # creación del dataset
@@ -44,6 +44,10 @@ class Pix2Pix(BaseModel):
         self.val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
         self.val_gen_acc = tf.keras.metrics.BinaryAccuracy('val_gen_accuracy')
         self.val_real_acc = tf.keras.metrics.BinaryAccuracy('val_real_accuracy')
+
+        # generator loss
+        self.train_gen_loss = tf.keras.metrics.Mean('train_gen_loss', dtype=tf.float32)
+        self.val_gen_loss = tf.keras.metrics.Mean('val_gen_loss', dtype=tf.float32)
 
     @staticmethod
     def set_logdirs(path):
@@ -236,7 +240,7 @@ class Pix2Pix(BaseModel):
 
         total_disc_loss = real_loss + generated_loss
 
-        return total_disc_loss
+        return total_disc_loss * 0.5
 
     def generator_loss(self, disc_generated_output, gen_output, target):
         g_loss = self.loss_object(tf.ones_like(disc_generated_output), disc_generated_output)
@@ -315,20 +319,14 @@ class Pix2Pix(BaseModel):
                 stack = self.get_tb_stack(test_ds)
                 tf.summary.image('validation', stack, step=epoch)
             #
-            # # Tensorboard
-            # self.metric_logger.write_metrics('train', epoch)
-            # self.metric_logger.write_metrics('validation', epoch)
-            #
-            # self.metric_logger.reset_metrics('train')
-            # self.metric_logger.reset_metrics('validation')
+            # Tensorboard
+            self.train_loss.reset_states()
+            self.train_gen_acc.reset_states()
+            self.train_real_acc.reset_states()
 
-            # self.train_loss.reset_states()
-            # self.train_gen_acc.reset_states()
-            # self.train_real_acc.reset_states()
-            #
-            # self.val_loss.reset_states()
-            # self.val_gen_acc.reset_states()
-            # self.val_real_acc.reset_states()
+            self.val_loss.reset_states()
+            self.val_gen_acc.reset_states()
+            self.val_real_acc.reset_states()
 
     def get_tb_stack(self, dataset):
         for x, y in dataset.take(1):
@@ -357,27 +355,37 @@ class CustomPix2Pix(Pix2Pix):
         """
         color_in = ''
         color_out = ''
-        modes = ['segment', 'invsegment', 'ruins_to_temples']
+        modes = ['segment', 'invsegment_all', 'invsegment_complete', 'ruins_to_temples', 'ruins_to_temples_color']
         if mode not in modes:
             raise Exception('mode not supported; supported modes are segment, invsegment and ruins_to_temples')
         # segment: segment real to colors
         # desegment: desegment colors to real
         # ruins_to_temples
-
+        dataset_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\\'
         for i, temple in enumerate(temples):
 
             # default: ruins to temples
-            dataset_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\\'
 
             if mode == 'segment':
                 input_path = dataset_path + r'temples*\\' + temple + '*'
                 output_path = dataset_path + r'colors*\colors_' + temple + '*'
-            elif mode == 'invsegment':
+
+            elif mode == 'invsegment_all':
+                # color temples and ruins to real
                 input_path = dataset_path + r'colors*\colors_' + temple + '*'
                 output_path = dataset_path + r'temples*\\' + temple + '*'
+
+            elif mode == 'invsegment_complete':
+                input_path = dataset_path + r'colors_temples\colors_' + temple
+                output_path = dataset_path + r'temples\\' + temple
+
             elif mode == 'ruins_to_temples':
                 input_path = dataset_path + r'temples_ruins\\' + temple + '*'
                 output_path = dataset_path + r'temples\\' + temple
+
+            elif mode == 'ruins_to_temples_color':
+                input_path = dataset_path + r'colors_temples_ruins\\colors_' + temple + '*'
+                output_path = dataset_path + r'colors_temples\\colors_' + temple
 
             if i == 0:
                 train_dataset, val_dataset = self.get_dataset(input_path, output_path, ruins_per_temple)
@@ -407,8 +415,8 @@ class CustomPix2Pix(Pix2Pix):
 
         buffer_size = min(len(input_path), len(output_path))
 
-        test_mask = ([False] * (len(output_path) // 100 * 8) + [True] * (len(output_path) // 100 * 2)) * 10
         train_mask = ([True] * (len(output_path) // 100 * 8) + [False] * (len(output_path) // 100 * 2)) * 10
+        test_mask = ([False] * (len(output_path) // 100 * 8) + [True] * (len(output_path) // 100 * 2)) * 10
 
         train_input = list(compress(input_path, train_mask * repeat_real))
         train_real = list(compress(output_path, train_mask))
@@ -418,10 +426,10 @@ class CustomPix2Pix(Pix2Pix):
 
         # train
         input_dataset = tf.data.Dataset.list_files(train_input, shuffle=False)
-        real_datset = tf.data.Dataset.list_files(train_real, shuffle=False)
-        real_datset = real_datset.repeat(repeat_real)
+        output_dataset = tf.data.Dataset.list_files(train_real, shuffle=False)
+        output_dataset = output_dataset.repeat(repeat_real)
 
-        train_dataset = tf.data.Dataset.zip((input_dataset, real_datset))
+        train_dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
         train_dataset = train_dataset.map(preprocessing.load_images_train).shuffle(buffer_size).batch(batch_size)
 
         # test
@@ -498,17 +506,81 @@ class StylePix2Pix(Pix2Pix):
         self.val_loss(disc_loss)
 
 
+class Reconstructor:
+    def __init__(self, segmenter='path', desegmenter='path', reconstructor='path', log_dir='logs'):
+        self.segmenter = tf.keras.models.load_model(segmenter)
+        self.reconstructor = tf.keras.models.load_model(reconstructor)
+        self.desegmenter = tf.keras.models.load_model(desegmenter)
+
+        current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+        predict_log_dir = log_dir + r'\\' + current_time + r'\predict'
+        self.predict_writer = tf.summary.create_file_writer(predict_log_dir)
+
+        self._image_dir = 'images'
+        self._image_list = []
+
+        self.step = 0
+
+    def set_image_dir(self, image_dir: str):
+        self._image_dir = image_dir
+        self._image_list = glob.glob(self._image_dir + r'\*')
+
+    def get_image_batch(self, start, finish):
+        batch = tf.data.Dataset.list_files(self._image_list[start:finish])
+        batch = batch.map(preprocessing.load_images_predict).batch(1)
+
+        return batch
+
+    def get_random_batch(self, ammount):
+        choice = np.random.choice(len(self._image_list), ammount)
+        batch = [self._image_list[i] for i in choice]
+        batch = tf.data.Dataset.list_files(batch)
+        batch = batch.map(preprocessing.load_images_predict).batch(1)
+
+        return batch
+
+    def predict(self, dataset):
+        for x in dataset:
+            # x is the input
+            segmented = self.segmenter(x, training=False)
+            reconstructed = self.reconstructor(segmented, training=False)
+            desegmented = self.desegmenter(reconstructed, training=False)
+            stack = tf.stack([x, segmented, reconstructed, desegmented], axis=0) * 0.5 + 0.5
+            stack = tf.squeeze(stack)
+
+            with self.predict_writer.as_default():
+                tf.summary.image('predictions', stack, step=self.step, max_outputs=4)
+
+            self.step += 1
+
+
 if __name__ == '__main__':
-    pix2pix = CustomPix2Pix(gen_path='initial_generator.h5', disc_path='initial_discriminator.h5',
-                            log_dir=r'logs\\custom_pix2pix')
-    # preprocessing.RESIZE_FACTOR = 3
-    # train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples\temple_0',
-    #                                   r'C:\Users\Ceiec06\Documents\GitHub\CEIEC-GANs\greek_temples_dataset\Colores')
 
-    # train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\ruins\temple_0',
-    #                                   r'C:\Users\Ceiec06\Documents\GitHub\CEIEC-GANs\greek_temples_dataset\restored_png')
+    # Segmentación por colores
+    pix2pix = CustomPix2Pix(log_dir=r'logs\\final_one_temple')
+    train, test = pix2pix.get_complete_datset(temples=['temple_0'], mode='segment')
+    pix2pix.fit(train, test, 200)
+    pix2pix.save_weights(pix2pix.generator, 'trained_models/temples_to_color.h5')
 
-    # train, test = pix2pix.get_dataset(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples_ruins\temple_0_ruins_0',
-    #                                   r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\temples\temple_0')
-    train, test = pix2pix.get_complete_datset(temples=['temple_0'], ruins_per_temple=1, mode='segment')
-    pix2pix.fit(train, test, 100)
+    # Reconstrucción color - color
+    pix2pix = CustomPix2Pix(log_dir=r'logs\\final_one_temple')
+    train, test = pix2pix.get_complete_datset(temples=['temple_0'], mode='ruins_to_temples_color')
+    pix2pix.fit(train, test, 200)
+    pix2pix.save_weights(pix2pix.generator, 'trained_models/color_rebuilder.h5')
+
+    pix2pix = CustomPix2Pix(log_dir=r'logs\\final_one_temple')
+    train, test = pix2pix.get_complete_datset(temples=['temple_0'], mode='invsegment_complete')
+    pix2pix.fit(train, test, 200)
+    pix2pix.save_weights(pix2pix.generator, 'trained_models/color_to_temples.h5')
+
+    # Desegmentación
+    full_model = Reconstructor(segmenter='trained_models/temples_to_color.h5',
+                               desegmenter='trained_models/ruins_to_temples_color.h5',
+                               reconstructor='trained_models/color_to_temple.h5',
+                               log_dir=r'logs\\full_model')
+    full_model.set_image_dir(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples_ruins\temple_0_ruins_0')
+    full_model.predict(full_model.get_random_batch(30))
+
+    # TODO: Si bien esta es la implementación base "naive" (usando pix2pix para todo, sin introducir modificaciones)
+    #  puede mejorarse convirtiendo esa segmentación y desegmentación en un CycleGAN. Mejorará también una vez se
+    #  tengan todos los templos con sus respectivos colores.

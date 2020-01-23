@@ -75,6 +75,15 @@ def load_images_test(input_path, real_path):
     return input_image, real_image
 
 
+def load_images_predict(path):
+    image = tf.io.read_file(path)
+    image = tf.image.decode_png(image, channels=3)
+    image = tf.cast(image, tf.float32)
+    image = tf.image.resize(image, [IMG_HEIGHT, IMG_WIDTH], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+    image = (image / 127.5) - 1
+    return image
+
+
 def load_single_image(path):
     # Loading
     image = tf.io.read_file(path)
