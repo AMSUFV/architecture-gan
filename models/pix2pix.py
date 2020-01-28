@@ -13,7 +13,7 @@ from sklearn.model_selection import train_test_split
 from models.utils import pix2pix_preprocessing as preprocessing
 from models.utils.basemodel import BaseModel
 from models.utils.metric_logger import MetricLogger
-
+from models.utils import custom_preprocessing as cp
 
 # TODO add training checkpoints
 class Pix2Pix(BaseModel):
@@ -439,30 +439,6 @@ class CustomPix2Pix(Pix2Pix):
         return train_dataset, test_dataset
 
 
-class HybridReconstruction(Pix2Pix):
-    @staticmethod
-    def get_dataset(temples, split=0.2, dataset_path=None):
-        if dataset_path is None:
-            dataset_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\\'
-
-    @staticmethod
-    def get_single_dataset(ruins_path, colors_path, temple_path, split=0.2):
-        batch_size = 1
-        ruins_path_list = glob.glob(ruins_path + r'\*.png')
-        colors_path_list = glob.glob(colors_path + r'\*.png')
-        temple_path_list = glob.glob(temple_path + r'\*.png')
-
-        repetition = len(temple_path_list) // ruins_path_list
-
-        ruins_dataset = tf.data.Dataset.list_files(ruins_path_list, shuffle=False)
-        colors_dataset = tf.data.Dataset.list_files(colors_path_list, shuffle=False)
-        temple_dataset = tf.data.Dataset.list_files(temple_path_list, shuffle=False)
-        temple_dataset = temple_dataset.repeat(repetition)
-
-
-
-
-
 class Reconstructor:
     def __init__(self, segmenter='path', desegmenter='path', reconstructor='path', log_dir='logs'):
         self.segmenter = tf.keras.models.load_model(segmenter)
@@ -512,32 +488,8 @@ class Reconstructor:
 
 
 if __name__ == '__main__':
-
-    # Segmentación por colores
-    # pix2pix = CustomPix2Pix(log_dir=r'logs\\final_one_temple')
-    # train, test = pix2pix.get_complete_datset(temples=['temple_0'], mode='segment')
-    # pix2pix.fit(train, test, 200)
-    # pix2pix.save_weights(pix2pix.generator, 'trained_models/temples_to_color.h5')
-    #
-    # # Reconstrucción color - color
-    # pix2pix = CustomPix2Pix(log_dir=r'logs\\final_one_temple')
-    # train, test = pix2pix.get_complete_datset(temples=['temple_0'], mode='ruins_to_temples_color')
-    # pix2pix.fit(train, test, 200)
-    # pix2pix.save_weights(pix2pix.generator, 'trained_models/color_rebuilder.h5')
-    #
-    # pix2pix = CustomPix2Pix(log_dir=r'logs\\final_one_temple')
-    # train, test = pix2pix.get_complete_datset(temples=['temple_0'], mode='invsegment_complete')
-    # pix2pix.fit(train, test, 200)
-    # pix2pix.save_weights(pix2pix.generator, 'trained_models/color_to_temples.h5')
-
-    # Desegmentación
-    # full_model = Reconstructor(segmenter='trained_models/temples_to_color.h5',
-    #                            desegmenter='trained_models/color_to_temples.h5',
-    #                            reconstructor='trained_models/color_rebuilder.h5',
-    #                            log_dir=r'logs\\full_model')
-    # full_model.set_image_dir(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples_ruins\temple_0_ruins_0')
-    # full_model.predict(full_model.get_random_batch(30))
-    newgen = Pix2Pix.build_generator()
+    custom = CustomPix2Pix(log_dir=r'logs\\test')
+    train, test = custom.get_complete_datset(['temple_0'])
     # TODO: Si bien esta es la implementación base "naive" (usando pix2pix para todo, sin introducir modificaciones)
     #  puede mejorarse convirtiendo esa segmentación y desegmentación en un CycleGAN. Mejorará también una vez se
     #  tengan todos los templos con sus respectivos colores.
