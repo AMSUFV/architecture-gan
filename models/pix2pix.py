@@ -15,6 +15,7 @@ from models.utils.basemodel import BaseModel
 from models.utils.metric_logger import MetricLogger
 
 
+# TODO add training checkpoints
 class Pix2Pix(BaseModel):
     def __init__(self, *, gen_path=None, disc_path=None, log_dir='logs'):
         self.generator, self.discriminator = self.set_weights(gen_path, disc_path)
@@ -147,13 +148,16 @@ class Pix2Pix(BaseModel):
 
         return tf.keras.Model(inputs=inputs, outputs=x)
 
-    def build_discriminator(self):
+    def build_discriminator(self, target=True):
         initializer = tf.random_normal_initializer(0., 0.02)
 
         inp = tf.keras.layers.Input(shape=[None, None, 3], name='input_image')
-        tar = tf.keras.layers.Input(shape=[None, None, 3], name='target_image')
 
-        x = tf.keras.layers.concatenate([inp, tar])  # (bs, 256, 256, channels*2)
+        if not target:
+            x = inp
+        else:
+            tar = tf.keras.layers.Input(shape=[None, None, 3], name='target_image')
+            x = tf.keras.layers.concatenate([inp, tar])  # (bs, 256, 256, channels*2)
 
         down1 = self.downsample(64, 4, apply_batchnorm=False)(x)  # (bs, 128, 128, 64)
         down2 = self.downsample(128, 4)(down1)  # (bs, 64, 64, 128)
@@ -173,7 +177,10 @@ class Pix2Pix(BaseModel):
         last = tf.keras.layers.Conv2D(1, 4, strides=1,
                                       kernel_initializer=initializer)(zero_pad2)  # (bs, 30, 30, 1)
 
-        return tf.keras.Model(inputs=[inp, tar], outputs=last)
+        if not target:
+            return tf.keras.Model(inputs=inp, outputs=last)
+        else:
+            return tf.keras.Model(inputs=[inp, tar], outputs=last)
 
     # Parent class implementation
     def set_weights(self, gen_path, disc_path):
@@ -293,7 +300,7 @@ class Pix2Pix(BaseModel):
         self.val_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
         self.val_real_acc(tf.ones_like(disc_real_output), disc_real_output)
 
-    def fit(self, train_ds, test_ds, epochs, save_path=None):
+    def fit(self, train_ds, test_ds, epochs):
         for epoch in range(epochs):
             # Train
             for input_image, target in train_ds:
@@ -344,7 +351,7 @@ class Pix2Pix(BaseModel):
 
 
 class CustomPix2Pix(Pix2Pix):
-    def get_complete_datset(self, temples, ruins_per_temple=1, mode='ruins_to_temples'):
+    def get_complete_datset(self, temples, ruins_per_temple=1, mode=None):
         """
         Este método asume una estructura de archivos en la que los templos completos están en una carpeta llamada
         temples y llamados temple_0, temple_1, etc, y sus ruinas en la carpeta temples_ruins
@@ -353,37 +360,27 @@ class CustomPix2Pix(Pix2Pix):
         :param ruins_per_temple:
         :return:
         """
-        color_in = ''
-        color_out = ''
-        modes = ['segment', 'invsegment_all', 'invsegment_complete', 'ruins_to_temples', 'ruins_to_temples_color']
-        if mode not in modes:
-            raise Exception('mode not supported; supported modes are segment, invsegment and ruins_to_temples')
-        # segment: segment real to colors
-        # desegment: desegment colors to real
+
+        if mode is None:
+            mode = 'picture_reconstruction'
+
         # ruins_to_temples
         dataset_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\\'
         for i, temple in enumerate(temples):
-
-            # default: ruins to temples
-
-            if mode == 'segment':
+            if mode == 'to_colors':
                 input_path = dataset_path + r'temples*\\' + temple + '*'
                 output_path = dataset_path + r'colors*\colors_' + temple + '*'
 
-            elif mode == 'invsegment_all':
+            elif mode == 'to_pictures':
                 # color temples and ruins to real
                 input_path = dataset_path + r'colors*\colors_' + temple + '*'
                 output_path = dataset_path + r'temples*\\' + temple + '*'
 
-            elif mode == 'invsegment_complete':
-                input_path = dataset_path + r'colors_temples\colors_' + temple
-                output_path = dataset_path + r'temples\\' + temple
-
-            elif mode == 'ruins_to_temples':
+            elif mode == 'picture_reconstruction':
                 input_path = dataset_path + r'temples_ruins\\' + temple + '*'
                 output_path = dataset_path + r'temples\\' + temple
 
-            elif mode == 'ruins_to_temples_color':
+            elif mode == 'color_reconstruction':
                 input_path = dataset_path + r'colors_temples_ruins\\colors_' + temple + '*'
                 output_path = dataset_path + r'colors_temples\\colors_' + temple
 
@@ -407,7 +404,6 @@ class CustomPix2Pix(Pix2Pix):
                             modelos de sus ruinas se tengan
         :return: train_dataset, test_datset
         """
-        buffer_size = len(input_path)
         batch_size = 1
 
         input_path = glob.glob(input_path + r'\*.png')
@@ -443,67 +439,28 @@ class CustomPix2Pix(Pix2Pix):
         return train_dataset, test_dataset
 
 
-class StylePix2Pix(Pix2Pix):
-    def build_discriminator(self):
-        initializer = tf.random_normal_initializer(0., 0.02)
+class HybridReconstruction(Pix2Pix):
+    @staticmethod
+    def get_dataset(temples, split=0.2, dataset_path=None):
+        if dataset_path is None:
+            dataset_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\\'
 
-        inp = tf.keras.layers.Input(shape=[None, None, 3], name='input_image')
+    @staticmethod
+    def get_single_dataset(ruins_path, colors_path, temple_path, split=0.2):
+        batch_size = 1
+        ruins_path_list = glob.glob(ruins_path + r'\*.png')
+        colors_path_list = glob.glob(colors_path + r'\*.png')
+        temple_path_list = glob.glob(temple_path + r'\*.png')
 
-        down1 = self.downsample(64, 4, apply_batchnorm=False)(inp)
-        down2 = self.downsample(128, 4)(down1)
-        down3 = self.downsample(256, 4)(down2)
+        repetition = len(temple_path_list) // ruins_path_list
 
-        zero_pad1 = tf.keras.layers.ZeroPadding2D()(down3)
-        conv = tf.keras.layers.Conv2D(512, 4, strides=1,
-                                      kernel_initializer=initializer,
-                                      use_bias=False)(zero_pad1)
+        ruins_dataset = tf.data.Dataset.list_files(ruins_path_list, shuffle=False)
+        colors_dataset = tf.data.Dataset.list_files(colors_path_list, shuffle=False)
+        temple_dataset = tf.data.Dataset.list_files(temple_path_list, shuffle=False)
+        temple_dataset = temple_dataset.repeat(repetition)
 
-        norm = tf.keras.layers.BatchNormalization()(conv)
-        # norm = InstanceNormalization()(conv)
 
-        leaky_relu = tf.keras.layers.LeakyReLU()(norm)
 
-        zero_pad2 = tf.keras.layers.ZeroPadding2D()(leaky_relu)  # (bs, 33, 33, 512)
-
-        last = tf.keras.layers.Conv2D(1, 4, strides=1,
-                                      kernel_initializer=initializer)(zero_pad2)  # (bs, 30, 30, 1)
-
-        return tf.keras.Model(inputs=inp, outputs=last)
-
-    def generator_loss(self, disc_generated_output):
-        return self.loss_object(tf.ones_like(disc_generated_output), disc_generated_output)
-
-    @tf.function
-    def train_step(self, train_x, train_y):
-        with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
-            gen_output = self.generator(train_x, training=True)
-
-            disc_real_output = self.discriminator(train_y, training=True)
-            disc_generated_output = self.discriminator(gen_output, training=True)
-
-            gen_loss = self.generator_loss(disc_generated_output)
-            disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
-
-        generator_gradients = gen_tape.gradient(gen_loss, self.generator.trainable_variables)
-        discriminator_gradients = disc_tape.gradient(disc_loss, self.discriminator.trainable_variables)
-
-        self.generator_optimizer.apply_gradients(zip(generator_gradients, self.generator.trainable_variables))
-        self.discriminator_optimizer.apply_gradients(
-            zip(discriminator_gradients, self.discriminator.trainable_variables))
-
-        # Tensorboard
-        self.train_loss(disc_loss)
-
-    def validate(self, test_in, test_out):
-        gen_output = self.generator(test_in, training=False)
-
-        disc_real_output = self.discriminator(test_out, training=False)
-        disc_generated_output = self.discriminator(gen_output, training=False)
-
-        gen_loss = self.generator_loss(disc_generated_output)
-        disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
-
-        self.val_loss(disc_loss)
 
 
 class Reconstructor:
@@ -557,30 +514,30 @@ class Reconstructor:
 if __name__ == '__main__':
 
     # Segmentación por colores
-    pix2pix = CustomPix2Pix(log_dir=r'logs\\final_one_temple')
-    train, test = pix2pix.get_complete_datset(temples=['temple_0'], mode='segment')
-    pix2pix.fit(train, test, 200)
-    pix2pix.save_weights(pix2pix.generator, 'trained_models/temples_to_color.h5')
-
-    # Reconstrucción color - color
-    pix2pix = CustomPix2Pix(log_dir=r'logs\\final_one_temple')
-    train, test = pix2pix.get_complete_datset(temples=['temple_0'], mode='ruins_to_temples_color')
-    pix2pix.fit(train, test, 200)
-    pix2pix.save_weights(pix2pix.generator, 'trained_models/color_rebuilder.h5')
-
-    pix2pix = CustomPix2Pix(log_dir=r'logs\\final_one_temple')
-    train, test = pix2pix.get_complete_datset(temples=['temple_0'], mode='invsegment_complete')
-    pix2pix.fit(train, test, 200)
-    pix2pix.save_weights(pix2pix.generator, 'trained_models/color_to_temples.h5')
+    # pix2pix = CustomPix2Pix(log_dir=r'logs\\final_one_temple')
+    # train, test = pix2pix.get_complete_datset(temples=['temple_0'], mode='segment')
+    # pix2pix.fit(train, test, 200)
+    # pix2pix.save_weights(pix2pix.generator, 'trained_models/temples_to_color.h5')
+    #
+    # # Reconstrucción color - color
+    # pix2pix = CustomPix2Pix(log_dir=r'logs\\final_one_temple')
+    # train, test = pix2pix.get_complete_datset(temples=['temple_0'], mode='ruins_to_temples_color')
+    # pix2pix.fit(train, test, 200)
+    # pix2pix.save_weights(pix2pix.generator, 'trained_models/color_rebuilder.h5')
+    #
+    # pix2pix = CustomPix2Pix(log_dir=r'logs\\final_one_temple')
+    # train, test = pix2pix.get_complete_datset(temples=['temple_0'], mode='invsegment_complete')
+    # pix2pix.fit(train, test, 200)
+    # pix2pix.save_weights(pix2pix.generator, 'trained_models/color_to_temples.h5')
 
     # Desegmentación
-    full_model = Reconstructor(segmenter='trained_models/temples_to_color.h5',
-                               desegmenter='trained_models/ruins_to_temples_color.h5',
-                               reconstructor='trained_models/color_to_temple.h5',
-                               log_dir=r'logs\\full_model')
-    full_model.set_image_dir(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples_ruins\temple_0_ruins_0')
-    full_model.predict(full_model.get_random_batch(30))
-
+    # full_model = Reconstructor(segmenter='trained_models/temples_to_color.h5',
+    #                            desegmenter='trained_models/color_to_temples.h5',
+    #                            reconstructor='trained_models/color_rebuilder.h5',
+    #                            log_dir=r'logs\\full_model')
+    # full_model.set_image_dir(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples_ruins\temple_0_ruins_0')
+    # full_model.predict(full_model.get_random_batch(30))
+    newgen = Pix2Pix.build_generator()
     # TODO: Si bien esta es la implementación base "naive" (usando pix2pix para todo, sin introducir modificaciones)
     #  puede mejorarse convirtiendo esa segmentación y desegmentación en un CycleGAN. Mejorará también una vez se
     #  tengan todos los templos con sus respectivos colores.
