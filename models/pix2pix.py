@@ -49,10 +49,11 @@ def upsample(filters, size, apply_dropout=False):
 
 
 # TODO add training checkpoints
-# TODO make the generator and discriminator usable outside without the need of instantating Pix2Pix
 class Pix2Pix(BaseModel):
-    def __init__(self, *, gen_path=None, disc_path=None, log_dir='logs'):
-        self.generator, self.discriminator = self.set_weights(gen_path, disc_path)
+    def __init__(self, *, gen_path=None, disc_path=None, log_dir=None, name='pix2pix'):
+
+        self.generator = self.set_weights(gen_path, self.build_generator, 'initial_generator')
+        self.discriminator = self.set_weights(disc_path, self.build_discriminator, 'initial_discriminator')
 
         self.generator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
         self.discriminator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
@@ -62,15 +63,12 @@ class Pix2Pix(BaseModel):
         self.LAMBDA = 100
 
         # TODO: Single responsibility; sacar las métricas
-        # if keep_logs:
-        #     self.metric_logger = MetricLogger(log_dir=log_dir, default_metrics=True)
-        # else:
-        #     self.metric_logger = None
-        # self.metric_logger = MetricLogger(r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix')
-
         # Tensorboard
-        # log_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix'
-        self.train_summary_writer, self.val_summary_writer = self.set_logdirs(log_dir)
+        log_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix'
+        # self.train_summary_writer, self.val_summary_writer = self.set_logdirs(log_dir)
+        self.train_summary_writer = self.set_logdir(log_dir, 'train')
+        self.val_summary_writer = self.set_logdir(log_dir, 'validation')
+
         # Métricas
         self.train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
         self.train_real_acc = tf.keras.metrics.BinaryAccuracy('train_real_accuracy')
@@ -100,6 +98,13 @@ class Pix2Pix(BaseModel):
         val_summary_writer = tf.summary.create_file_writer(val_log_dir)
 
         return train_summary_writer, val_summary_writer
+
+    @staticmethod
+    def set_logdir(path, name):
+        current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+        log_path = rf'{path}\\{current_time}\\{name}'
+        writer = tf.summary.create_file_writer(log_path)
+        return writer
 
     @staticmethod
     def build_generator():
@@ -151,7 +156,7 @@ class Pix2Pix(BaseModel):
         return tf.keras.Model(inputs=inputs, outputs=x)
 
     @staticmethod
-    def build_discriminator(self, target=True):
+    def build_discriminator(target=True):
         initializer = tf.random_normal_initializer(0., 0.02)
 
         inp = tf.keras.layers.Input(shape=[None, None, 3], name='input_image')
@@ -186,16 +191,24 @@ class Pix2Pix(BaseModel):
             return tf.keras.Model(inputs=[inp, tar], outputs=last)
 
     # Parent class implementation
-    def set_weights(self, gen_path, disc_path):
-        if gen_path is not None and disc_path is not None:
-            generator = tf.keras.models.load_model(gen_path)
-            discriminator = tf.keras.models.load_model(disc_path)
+    # def set_weights(self, gen_path, disc_path):
+    #     if gen_path is not None and disc_path is not None:
+    #         generator = tf.keras.models.load_model(gen_path)
+    #         discriminator = tf.keras.models.load_model(disc_path)
+    #     else:
+    #         generator = self.build_generator()
+    #         discriminator = self.build_discriminator()
+    #         self.save_weights(generator, 'initial_generator.h5')
+    #         self.save_weights(discriminator, 'initial_discriminator.h5')
+    #     return generator, discriminator
+
+    def set_weights(self, path, func, name):
+        if path is not None:
+            model = tf.keras.models.load_model(path)
         else:
-            generator = self.build_generator()
-            discriminator = self.build_discriminator()
-            self.save_weights(generator, 'initial_generator.h5')
-            self.save_weights(discriminator, 'initial_discriminator.h5')
-        return generator, discriminator
+            model = func()
+            self.save_weights(model, f'{name}.h5')
+        return model
 
     @staticmethod
     def save_weights(model, name):
@@ -207,7 +220,7 @@ class Pix2Pix(BaseModel):
         preprocessing.IMG_HEIGHT = height
 
     @staticmethod
-    def get_dataset(input_path, real_path, split=0.2, file_shuffle=True):
+    def get_dataset(input_path, real_path, split=0.2, file_shuffle=False):
         """Método genérico de creación de datasets
 
         :param input_path: ruta a la carpeta con los inputs de la red
@@ -316,18 +329,15 @@ class Pix2Pix(BaseModel):
                 tf.summary.scalar('loss', self.train_loss.result(), step=epoch)
                 tf.summary.scalar('accuracy real', self.train_real_acc.result(), step=epoch)
                 tf.summary.scalar('accuracy generated', self.train_gen_acc.result(), step=epoch)
-                # images
-                stack = self.get_tb_stack(train_ds)
-                tf.summary.image('train', stack, step=epoch)
 
             with self.val_summary_writer.as_default():
                 tf.summary.scalar('loss', self.val_loss.result(), step=epoch)
                 tf.summary.scalar('accuracy real', self.val_real_acc.result(), step=epoch)
                 tf.summary.scalar('accuracy generated', self.val_gen_acc.result(), step=epoch)
 
-                # images
-                stack = self.get_tb_stack(test_ds)
-                tf.summary.image('validation', stack, step=epoch)
+            self.predict(self.generator, test_ds, self.val_summary_writer, 'validation', epoch, 1)
+            self.predict(self.generator, train_ds, self.train_summary_writer, 'train', epoch, 1)
+
             #
             # Tensorboard
             self.train_loss.reset_states()
@@ -338,6 +348,14 @@ class Pix2Pix(BaseModel):
             self.val_gen_acc.reset_states()
             self.val_real_acc.reset_states()
 
+    @staticmethod
+    def predict(model, dataset, writer, tag, step, samples=1):
+        for x, _ in dataset.take(samples):
+            prediction = model(x, training=False) * 0.5 + 0.5
+            # prediction = tf.squeeze(prediction)
+            with writer.as_default():
+                tf.summary.image(tag, prediction, step=step)
+
     def get_tb_stack(self, dataset):
         for x, y in dataset.take(1):
             # x is the input
@@ -347,10 +365,6 @@ class Pix2Pix(BaseModel):
             stack = tf.squeeze(stack)
 
             return stack
-
-    # TODO: Revisit this
-    def predict(self, path, save_path=None):
-        pass
 
 
 class CustomPix2Pix(Pix2Pix):
@@ -491,11 +505,17 @@ class Reconstructor:
 
 
 if __name__ == '__main__':
-    # custom = CustomPix2Pix(log_dir=r'logs\\test')
-    # train, test = custom.get_complete_datset(['temple_0'])
     # TODO: Si bien esta es la implementación base "naive" (usando pix2pix para todo, sin introducir modificaciones)
     #  puede mejorarse convirtiendo esa segmentación y desegmentación en un CycleGAN. Mejorará también una vez se
     #  tengan todos los templos con sus respectivos colores.
-    generator = Pix2Pix.build_generator()
-    print('done')
 
+    pix2pix = Pix2Pix(log_dir=r'logs\\pix2pix\\ruins2temples_1024x512')
+
+    path_in = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples_ruins\temple_0_ruins_0'
+    path_out = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples\temple_0'
+
+    pix2pix.set_input_shape(1024, 512)
+
+    train, test = pix2pix.get_dataset(path_in, path_out)
+
+    pix2pix.fit(train, test, epochs=200)
