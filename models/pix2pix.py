@@ -65,7 +65,6 @@ class Pix2Pix(BaseModel):
         # TODO: Single responsibility; sacar las métricas
         # Tensorboard
         log_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix'
-        # self.train_summary_writer, self.val_summary_writer = self.set_logdirs(log_dir)
         self.train_summary_writer = self.set_logdir(log_dir, 'train')
         self.val_summary_writer = self.set_logdir(log_dir, 'validation')
 
@@ -81,23 +80,6 @@ class Pix2Pix(BaseModel):
         # generator loss
         self.train_gen_loss = tf.keras.metrics.Mean('train_gen_loss', dtype=tf.float32)
         self.val_gen_loss = tf.keras.metrics.Mean('val_gen_loss', dtype=tf.float32)
-
-    @staticmethod
-    def set_logdirs(path):
-        """
-        Establece dónde se guardarán los logs del entrenamiento
-
-        :param path: String. Path a la carpeta donde se guardarán los logs del entrenamiento
-        :return: file writer, file writer
-        """
-        current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-        train_log_dir = path + r'\\' + current_time + r'\train'
-        val_log_dir = path + r'\\' + current_time + r'\val'
-
-        train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-        val_summary_writer = tf.summary.create_file_writer(val_log_dir)
-
-        return train_summary_writer, val_summary_writer
 
     @staticmethod
     def set_logdir(path, name):
@@ -164,8 +146,8 @@ class Pix2Pix(BaseModel):
         if not target:
             x = inp
         else:
-            tar = tf.keras.layers.Input(shape=[None, None, 3], name='target_image')
-            x = tf.keras.layers.concatenate([inp, tar])
+            target = tf.keras.layers.Input(shape=[None, None, 3], name='target_image')
+            x = tf.keras.layers.concatenate([inp, target])
 
         down1 = downsample(64, 4, apply_batchnorm=False)(x)
         down2 = downsample(128, 4)(down1)
@@ -188,19 +170,7 @@ class Pix2Pix(BaseModel):
         if not target:
             return tf.keras.Model(inputs=inp, outputs=last)
         else:
-            return tf.keras.Model(inputs=[inp, tar], outputs=last)
-
-    # Parent class implementation
-    # def set_weights(self, gen_path, disc_path):
-    #     if gen_path is not None and disc_path is not None:
-    #         generator = tf.keras.models.load_model(gen_path)
-    #         discriminator = tf.keras.models.load_model(disc_path)
-    #     else:
-    #         generator = self.build_generator()
-    #         discriminator = self.build_discriminator()
-    #         self.save_weights(generator, 'initial_generator.h5')
-    #         self.save_weights(discriminator, 'initial_discriminator.h5')
-    #     return generator, discriminator
+            return tf.keras.Model(inputs=[inp, target], outputs=last)
 
     def set_weights(self, path, func, name):
         if path is not None:
