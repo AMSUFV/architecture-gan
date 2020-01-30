@@ -15,7 +15,6 @@ from models.utils import custom_preprocessing as cp
 
 
 # Convenience functions
-# Creación de la red
 def downsample(filters, size, apply_batchnorm=True):
     initializer = tf.random_normal_initializer(0., 0.02)
 
@@ -138,39 +137,58 @@ class Pix2Pix(BaseModel):
         return tf.keras.Model(inputs=inputs, outputs=x)
 
     @staticmethod
-    def build_discriminator(target=True):
+    def build_discriminator(target=True, initial_filters=64, layers=4, last_layer='patch'):
+        return_target = False
+        allowed_layers = ['patch', 'sigmoid', 'latent_space']
+
+        img_width = preprocessing.IMG_WIDTH
+        img_height = preprocessing.IMG_HEIGHT
+
+        if last_layer not in allowed_layers:
+            raise Exception(f'last layer not allowed, allowed layers are {allowed_layers}')
+
         initializer = tf.random_normal_initializer(0., 0.02)
 
-        inp = tf.keras.layers.Input(shape=[None, None, 3], name='input_image')
+        inp = tf.keras.layers.Input(shape=[img_height, img_width, 3], name='input_image')
 
         if not target:
             x = inp
         else:
-            target = tf.keras.layers.Input(shape=[None, None, 3], name='target_image')
+            target = tf.keras.layers.Input(shape=[img_height, img_width, 3], name='target_image')
             x = tf.keras.layers.concatenate([inp, target])
+            return_target = True
 
-        down1 = downsample(64, 4, apply_batchnorm=False)(x)
-        down2 = downsample(128, 4)(down1)
-        down3 = downsample(256, 4)(down2)
+        multipliyer = 1
+        for layer in range(layers):
+            if layer == 1:
+                x = downsample(initial_filters * multipliyer, 4, apply_batchnorm=False)(x)
+                multipliyer *= 2
+            else:
+                x = downsample(initial_filters * multipliyer, 4)(x)
+                if multipliyer < 8:
+                    multipliyer *= 2
 
-        zero_pad1 = tf.keras.layers.ZeroPadding2D()(down3)
-        conv = tf.keras.layers.Conv2D(512, 4, strides=1,
-                                      kernel_initializer=initializer,
-                                      use_bias=False)(zero_pad1)
+        if last_layer == 'patch':
+            last = tf.keras.layers.Conv2D(1, 4, strides=1, kernel_initializer=initializer)(x)
 
-        batchnorm1 = tf.keras.layers.BatchNormalization()(conv)
+        elif last_layer == 'sigmoid':
+            x = tf.keras.layers.Flatten()(x)
+            last = tf.keras.layers.Dense(1, activation='sigmoid', use_bias=False,
+                                         kernel_initializer=initializer)(x)
 
-        leaky_relu = tf.keras.layers.LeakyReLU()(batchnorm1)
+        elif last_layer == 'latent_space':
+            x = tf.keras.layers.Flatten()(x)
+            last = tf.keras.layers.Dense(1000, activation='sigmoid', use_bias=False,
+                                         kernel_initializer=initializer)(x)
 
-        zero_pad2 = tf.keras.layers.ZeroPadding2D()(leaky_relu)
-
-        last = tf.keras.layers.Conv2D(1, 4, strides=1,
-                                      kernel_initializer=initializer)(zero_pad2)
-
-        if not target:
-            return tf.keras.Model(inputs=inp, outputs=last)
-        else:
+        if return_target:
             return tf.keras.Model(inputs=[inp, target], outputs=last)
+        else:
+            return tf.keras.Model(inputs=inp, outputs=last)
+        # if not target:
+        #     return tf.keras.Model(inputs=inp, outputs=last)
+        # else:
+        #     return tf.keras.Model(inputs=[inp, target], outputs=last)
 
     def set_weights(self, path, func, name):
         if path is not None:
@@ -263,11 +281,6 @@ class Pix2Pix(BaseModel):
         self.generator_optimizer.apply_gradients(zip(generator_gradients, self.generator.trainable_variables))
         self.discriminator_optimizer.apply_gradients(
             zip(discriminator_gradients, self.discriminator.trainable_variables))
-
-        # Tensorboard
-        # if self.metric_logger is not None:
-        #     self.metric_logger.update_metric('train', 'loss', disc_loss)
-        #     self.metric_logger.update_metric('train', 'accuracy')
 
         self.train_loss(disc_loss)
         self.train_real_acc(tf.ones_like(disc_real_output), disc_real_output)
@@ -478,14 +491,17 @@ if __name__ == '__main__':
     # TODO: Si bien esta es la implementación base "naive" (usando pix2pix para todo, sin introducir modificaciones)
     #  puede mejorarse convirtiendo esa segmentación y desegmentación en un CycleGAN. Mejorará también una vez se
     #  tengan todos los templos con sus respectivos colores.
-
-    pix2pix = Pix2Pix(log_dir=r'logs\\pix2pix\\ruins2temples_1024x512')
+    #
+    pix2pix = Pix2Pix(log_dir=r'logs\\pix2pix\\ruins2temples_512x256_otherdisc')
 
     path_in = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples_ruins\temple_0_ruins_0'
     path_out = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples\temple_0'
 
-    pix2pix.set_input_shape(1024, 512)
+    pix2pix.set_input_shape(512, 256)
+    preprocessing.RESIZE_FACTOR = 1.3
 
+    # pix2pix.discriminator = pix2pix.build_discriminator()
     train, test = pix2pix.get_dataset(path_in, path_out)
 
-    pix2pix.fit(train, test, epochs=200)
+    pix2pix.fit(train, test, epochs=300)
+    # discriminator.summary()

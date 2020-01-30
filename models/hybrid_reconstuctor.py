@@ -1,6 +1,7 @@
 import glob
 import tensorflow as tf
 from models.pix2pix import Pix2Pix
+from models.pix2pix import downsample, upsample
 from models.utils import custom_preprocessing as cp
 
 
@@ -45,6 +46,79 @@ class HybridReconstuctor(Pix2Pix):
         train_dataset = train_dataset.map(cp.load_images_train).shuffle(buffer_size).batch(batch_size)
 
         return train_dataset
+
+    @staticmethod
+    def build_generator():
+        down_stack = [
+            downsample(64, 4, apply_batchnorm=False),
+            downsample(128, 4),
+            downsample(256, 4),
+            downsample(512, 4),
+            downsample(512, 4),
+            downsample(512, 4),
+            downsample(512, 4),
+            downsample(512, 4)
+        ]
+
+        up_stack = [
+            upsample(512, 4, apply_dropout=True),
+            upsample(512, 4, apply_dropout=True),
+            upsample(512, 4, apply_dropout=True),
+            upsample(512, 4),
+            upsample(256, 4),
+            upsample(128, 4),
+            upsample(64, 4),
+        ]
+
+        initializer = tf.random_normal_initializer(0., 0.02)
+        last = tf.keras.layers.Conv2DTranspose(3, 4, strides=2, padding='same',
+                                               kernel_initializer=initializer, activation='tanh')
+
+        concat = tf.keras.layers.Concatenate()
+
+        ruin_image = tf.keras.layers.Input(shape=[None, None, 3], name='ruin_image')
+        color_image = tf.keras.layers.Input(shape=[None, None, 3], name='color_image')
+        x = tf.keras.layers.concatenate([ruin_image, color_image])
+
+        # downsampling
+        skips = []
+        for down in down_stack:
+            x = down(x)
+            skips.append(x)
+
+        skips = reversed(skips[:-1])
+
+        # upsampling and connecting
+        for up, skip in zip(up_stack, skips):
+            x = up(x)
+            x = concat([x, skip])
+
+        x = last(x)
+
+        return tf.keras.Model(inputs=[ruin_image, color_image], outputs=x)
+
+    def fit(self, train_ds, test_ds, epochs):
+        for epoch in range(epochs):
+            # Train
+            for ruin, color, temple in train_ds:
+                self.train_step(ruin, color, temple)
+
+    @tf.function
+    def train_step(self, ruin, color, temple):
+        with tf.GradientTape(persistent=True) as tape:
+            gen_output = self.generator([ruin, color], training=True)
+
+            disc_real = self.discriminator([ruin, temple], training=True)
+            disc_generated = self.discriminator([ruin, gen_output], training=True)
+
+            gen_loss = self.generator_loss(disc_generated, gen_output, temple)
+            disc_loss = self.discriminator_loss(disc_real, disc_generated)
+
+        gen_gradients = tape.gradient(gen_loss, self.generator.trainable_variables)
+        disc_gradients = tape.gradient(disc_loss, self.discriminator.trainable_variables)
+
+        self.generator_optimizer.apply_gradients(zip(gen_gradients, self.generator.trainable_variables))
+        self.discriminator_optimizer.apply_gradients(zip(disc_gradients, self.discriminator.trainable_variables))
 
 
 if __name__ == '__main__':
