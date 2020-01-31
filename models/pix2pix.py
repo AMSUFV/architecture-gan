@@ -49,7 +49,7 @@ def upsample(filters, size, apply_dropout=False):
 
 # TODO add training checkpoints
 class Pix2Pix(BaseModel):
-    def __init__(self, *, gen_path=None, disc_path=None, log_dir=None, name='pix2pix'):
+    def __init__(self, *, gen_path=None, disc_path=None, log_dir=None):
 
         self.generator = self.set_weights(gen_path, self.build_generator, 'initial_generator')
         self.discriminator = self.set_weights(disc_path, self.build_discriminator, 'initial_discriminator')
@@ -81,7 +81,7 @@ class Pix2Pix(BaseModel):
         self.val_gen_loss = tf.keras.metrics.Mean('val_gen_loss', dtype=tf.float32)
 
     @staticmethod
-    def set_logdir(path, name):
+    def set_logdir(path, name='train'):
         current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
         log_path = rf'{path}\\{current_time}\\{name}'
         writer = tf.summary.create_file_writer(log_path)
@@ -139,22 +139,14 @@ class Pix2Pix(BaseModel):
     @staticmethod
     def build_discriminator(target=True, initial_filters=64, layers=4, last_layer='patch'):
         return_target = False
-        allowed_layers = ['patch', 'sigmoid', 'latent_space']
-
-        img_width = preprocessing.IMG_WIDTH
-        img_height = preprocessing.IMG_HEIGHT
-
-        if last_layer not in allowed_layers:
-            raise Exception(f'last layer not allowed, allowed layers are {allowed_layers}')
-
         initializer = tf.random_normal_initializer(0., 0.02)
 
-        inp = tf.keras.layers.Input(shape=[img_height, img_width, 3], name='input_image')
+        inp = tf.keras.layers.Input(shape=[None, None, 3], name='input_image')
 
         if not target:
             x = inp
         else:
-            target = tf.keras.layers.Input(shape=[img_height, img_width, 3], name='target_image')
+            target = tf.keras.layers.Input(shape=[None, None, 3], name='target_image')
             x = tf.keras.layers.concatenate([inp, target])
             return_target = True
 
@@ -168,29 +160,16 @@ class Pix2Pix(BaseModel):
                 if multipliyer < 8:
                     multipliyer *= 2
 
-        if last_layer == 'patch':
-            last = tf.keras.layers.Conv2D(1, 4, strides=1, kernel_initializer=initializer)(x)
+        # TODO: Se han eliminado varias layers de zeropadding del discriminador pix2pix original
 
-        elif last_layer == 'sigmoid':
-            x = tf.keras.layers.Flatten()(x)
-            last = tf.keras.layers.Dense(1, activation='sigmoid', use_bias=False,
-                                         kernel_initializer=initializer)(x)
-
-        elif last_layer == 'latent_space':
-            x = tf.keras.layers.Flatten()(x)
-            last = tf.keras.layers.Dense(1000, activation='sigmoid', use_bias=False,
-                                         kernel_initializer=initializer)(x)
+        last = tf.keras.layers.Conv2D(1, 4, strides=1, kernel_initializer=initializer)(x)
 
         if return_target:
             return tf.keras.Model(inputs=[inp, target], outputs=last)
         else:
             return tf.keras.Model(inputs=inp, outputs=last)
-        # if not target:
-        #     return tf.keras.Model(inputs=inp, outputs=last)
-        # else:
-        #     return tf.keras.Model(inputs=[inp, target], outputs=last)
 
-    def set_weights(self, path, func, name):
+    def set_weights(self, path, func, name='model'):
         if path is not None:
             model = tf.keras.models.load_model(path)
         else:
