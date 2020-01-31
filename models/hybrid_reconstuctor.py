@@ -97,11 +97,18 @@ class HybridReconstuctor(Pix2Pix):
 
         return tf.keras.Model(inputs=[ruin_image, color_image], outputs=x)
 
-    def fit(self, train_ds, test_ds, epochs):
+    def fit(self, train_ds, epochs):
         for epoch in range(epochs):
             # Train
             for ruin, color, temple in train_ds:
                 self.train_step(ruin, color, temple)
+
+            for x, y, z in train_ds.take(1):
+                pred = self.generator([x, y], training=False)
+                stack = tf.stack([x, y, z, pred], axis=0) * 0.5 + 0.5
+                stack = tf.squeeze(stack)
+                with self.train_summary_writer.as_default():
+                    tf.summary.image('train', stack, max_outputs=4, step=epoch)
 
     @tf.function
     def train_step(self, ruin, color, temple):
@@ -124,3 +131,4 @@ class HybridReconstuctor(Pix2Pix):
 if __name__ == '__main__':
     reconstructor = HybridReconstuctor(log_dir=r'logs\\test')
     train = reconstructor.get_dataset(['temple_0'])
+    reconstructor.fit(train, 100)

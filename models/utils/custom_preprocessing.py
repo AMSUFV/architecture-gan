@@ -8,7 +8,7 @@ RESIZE_FACTOR = 1.1
 def load_images_train(*paths):
     images = load(paths)
     images = random_jitter(images)
-    # images = normalize(images)
+    images = normalize(images)
     return images
 
 
@@ -58,17 +58,14 @@ def resize(width, height, images):
 
 
 def random_crop(images):
-    stack = tf.stack(images) / 127.5 + 1
+    stack = tf.stack(images)
     crop = tf.image.random_crop(stack, size=[len(images), IMG_HEIGHT, IMG_WIDTH, 3])
     crop = tf.unstack(crop, num=len(images))
     return crop
 
 
 def normalize(images):
-    print(type(images))
-    tf.print(images)
     normalized_images = []
-
     for image in images:
         normalized_image = (image / 127.5) - 1
         normalized_images.append(normalized_image)
