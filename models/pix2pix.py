@@ -87,27 +87,49 @@ class Pix2Pix(BaseModel):
         return writer
 
     @staticmethod
-    def build_generator():
-        down_stack = [
-            downsample(64, 4, apply_batchnorm=False),
-            downsample(128, 4),
-            downsample(256, 4),
-            downsample(512, 4),
-            downsample(512, 4),
-            downsample(512, 4),
-            downsample(512, 4),
-            downsample(512, 4)
-        ]
+    def build_generator(initial_units=64, filter_size=4, layers=8):
+        down_stack = []
+        units = []
+        multiplier = 1
+        for i in range(layers):
+            if i == 0:
+                down_stack.append(downsample(initial_units * multiplier, filter_size, apply_batchnorm=False))
+            else:
+                down_stack.append(downsample(initial_units * multiplier, filter_size))
+
+            units.append(initial_units * multiplier)
+
+            if multiplier < 8:
+                multiplier *= 2
+
+        # up_stack = []
+        # units.pop(-1)
+        # for i, unit in enumerate(units[::-1]):
+        #     if i < 3:
+        #         up_stack.append(upsample(units, filter_size, apply_dropout=True))
+        #     else:
+        #         up_stack.append(upsample(units, filter_size))
+
+        # down_stack = [
+        #     downsample(64, 4, apply_batchnorm=False),
+        #     downsample(128, 4),
+        #     downsample(256, 4),
+        #     downsample(512, 4),
+        #     downsample(512, 4),
+        #     downsample(512, 4),
+        #     downsample(512, 4),
+        #     downsample(512, 4)
+        # ]
 
         up_stack = [
-            upsample(512, 4, apply_dropout=True),
-            upsample(512, 4, apply_dropout=True),
-            upsample(512, 4, apply_dropout=True),
-            upsample(512, 4),
-            upsample(256, 4),
-            upsample(128, 4),
-            upsample(64, 4),
-        ]
+                    upsample(512, 4, apply_dropout=True),
+                    upsample(512, 4, apply_dropout=True),
+                    upsample(512, 4, apply_dropout=True),
+                    upsample(512, 4),
+                    upsample(256, 4),
+                    upsample(128, 4),
+                    upsample(64, 4)
+                ]
 
         initializer = tf.random_normal_initializer(0., 0.02)
         last = tf.keras.layers.Conv2DTranspose(3, 4, strides=2, padding='same',
@@ -136,7 +158,7 @@ class Pix2Pix(BaseModel):
         return tf.keras.Model(inputs=inputs, outputs=x)
 
     @staticmethod
-    def build_discriminator(target=True, initial_filters=64, layers=4, last_layer='patch'):
+    def build_discriminator(target=True, initial_units=64, layers=4, output_layer=None):
         return_target = False
         initializer = tf.random_normal_initializer(0., 0.02)
 
@@ -152,16 +174,19 @@ class Pix2Pix(BaseModel):
         multipliyer = 1
         for layer in range(layers):
             if layer == 1:
-                x = downsample(initial_filters * multipliyer, 4, apply_batchnorm=False)(x)
+                x = downsample(initial_units * multipliyer, 4, apply_batchnorm=False)(x)
                 multipliyer *= 2
             else:
-                x = downsample(initial_filters * multipliyer, 4)(x)
+                x = downsample(initial_units * multipliyer, 4)(x)
                 if multipliyer < 8:
                     multipliyer *= 2
 
         # TODO: Se han eliminado varias layers de zeropadding del discriminador pix2pix original
 
-        last = tf.keras.layers.Conv2D(1, 4, strides=1, kernel_initializer=initializer)(x)
+        if not output_layer:
+            last = tf.keras.layers.Conv2D(1, 4, strides=1, kernel_initializer=initializer)(x)
+        else:
+            last = output_layer
 
         if return_target:
             return tf.keras.Model(inputs=[inp, target], outputs=last)
@@ -469,17 +494,6 @@ if __name__ == '__main__':
     # TODO: Si bien esta es la implementación base "naive" (usando pix2pix para todo, sin introducir modificaciones)
     #  puede mejorarse convirtiendo esa segmentación y desegmentación en un CycleGAN. Mejorará también una vez se
     #  tengan todos los templos con sus respectivos colores.
-    #
-    pix2pix = Pix2Pix(log_dir=r'logs\\pix2pix\\ruins2temples_512x256_otherdisc')
 
-    path_in = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples_ruins\temple_0_ruins_0'
-    path_out = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples\temple_0'
-
-    pix2pix.set_input_shape(512, 256)
-    preprocessing.RESIZE_FACTOR = 1.3
-
-    # pix2pix.discriminator = pix2pix.build_discriminator()
-    train, test = pix2pix.get_dataset(path_in, path_out)
-
-    pix2pix.fit(train, test, epochs=300)
-    # discriminator.summary()
+    gen = Pix2Pix.build_generator()
+    gen.summary()

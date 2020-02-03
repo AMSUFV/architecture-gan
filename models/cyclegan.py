@@ -1,334 +1,135 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
-
-import datetime
-import glob
-import os
-import time
-
-import matplotlib.pyplot as plt
+from models.pix2pix import CustomPix2Pix
 import tensorflow as tf
-from IPython.display import clear_output
-from sklearn.model_selection import train_test_split
-from models.pix2pix import pix2pix_preprocessing as preprocessing
 
 
-class CycleGAN:
-    def __init__(self):
+# TODO: revisar el paper de cycleGAN y entender los bloques residuales
+class CycleGAN(CustomPix2Pix):
+    def __init__(self, log_dir):
+        super(CycleGAN, self).__init__(log_dir=log_dir)
+        self.generator = ''
+        self.discriminator = ''
+
         self.LAMBDA = 10
 
-        self.generator_xy_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
-        self.generator_yx_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
+        # Generators
+        # Given ruins or temples, the segmenter segments them into colors
+        self.segmenter = self.build_generator()
+        # Given ruins or temple segmentations, the desegmenter turns them back into their actual colors
+        self.desegmenter = self.build_generator()
+        # Given ruins or temple segmentations, the reconstructor turns them into temple reconstruction segmentations
+        # full temples should remain untouched
+        # self.reconstructor = self.build_generator()
 
-        self.discriminator_x_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
-        self.discriminator_y_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
+        # Discriminators
+        self.segmenter_disc = self.build_discriminator(target=False)
+        self.desegmenter_disc = self.build_discriminator(target=False)
+        # self.reconstructor = self.build_discriminator()
 
-        self.loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+        # optimizers
+        self.segmenter_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
+        self.desegmenter_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
+        self.segmenter_disc_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
+        self.desegmenter_disc_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
 
-        self.generator_xy = self.generator()
-        self.generator_yx = self.generator()
+    def generator_loss(self, disc_output):
+        return self.loss_object(tf.ones_like(disc_output), disc_output)
 
-        self.discriminator_x = self.discriminator()
-        self.discriminator_y = self.discriminator()
+    def discriminator_loss(self, disc_real_output, disc_generated_output):
+        real_loss = self.loss_object(tf.ones_like(disc_real_output), disc_real_output)
+        generated_loss = self.loss_object(tf.zeros_like(disc_generated_output), disc_generated_output)
+        total_loss = real_loss + generated_loss
+        return total_loss * 0.5
 
-        # metrics for tensorboard
-        self.train_acc_x = tf.keras.metrics.BinaryAccuracy(name='x_accuracy', threshold=0.2)
-        self.train_acc_y = tf.keras.metrics.BinaryAccuracy(name='y_accuracy', threshold=0.2)
-        self.discx = tf.keras.metrics.Mean(name='discx_loss', dtype=tf.float32)
+    def cycle_loss(self, real, cycled):
+        loss = tf.reduce_mean(tf.abs(real - cycled))
+        return self.LAMBDA * loss
 
-        # tensorboard logs
-        current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-        train_log_dir = 'logs/gradient_tape/' + current_time + '/train'
-        self.train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-
-    @staticmethod
-    def set_image_dims(self, height, width):
-        preprocessing.IMG_HEIGHT = height
-        preprocessing.IMG_WIDTH = width
-
-    # dataset creation function
-    @staticmethod
-    def gen_dataset(*, paths_x, paths_y):
-        # train-test 0.25 split
-        train_x, test_x = train_test_split(paths_x)
-        train_y, test_y = train_test_split(paths_y)
-
-        train_x = tf.data.Dataset.list_files(train_x)
-        train_y = tf.data.Dataset.list_files(train_y)
-        train_xy = tf.data.Dataset.zip((train_x, train_y))
-
-        test_x = tf.data.Dataset.list_files(test_x)
-        test_y = tf.data.Dataset.list_files(test_y)
-        test_xy = tf.data.Dataset.zip((test_x, test_y))
-
-        train_xy = train_xy.map(preprocessing.load_images_train).batch(1)
-        test_xy = test_xy.map(preprocessing.load_images_test).batch(1)
-
-        return train_xy, test_xy
-
-    # network creation
-    @staticmethod
-    def downsample(filters, size, apply_batchnorm=True):
-        initializer = tf.random_normal_initializer(0., 0.02)
-
-        result = tf.keras.Sequential()
-        result.add(tf.keras.layers.Conv2D(filters, size, strides=2, padding='same',
-                                          kernel_initializer=initializer, use_bias=False))
-
-        if apply_batchnorm:
-            result.add(InstanceNormalization())
-
-        result.add(tf.keras.layers.LeakyReLU())
-
-        return result
-
-    @staticmethod
-    def upsample(filters, size, apply_dropout=False):
-        initializer = tf.random_normal_initializer(0., 0.02)
-
-        result = tf.keras.Sequential()
-        result.add(tf.keras.layers.Conv2DTranspose(filters, size, strides=2, padding='same',
-                                                   kernel_initializer=initializer, use_bias=False))
-
-        result.add(InstanceNormalization())
-
-        if apply_dropout:
-            result.add(tf.keras.layers.Dropout(0.5))
-
-        result.add(tf.keras.layers.ReLU())
-
-        return result
-
-    def generator(self):
-        down_stack = [
-            # (256, 512)
-            self.downsample(64, 4, apply_batchnorm=False),  # 128, 256
-            self.downsample(128, 4),  # 64, 128
-            self.downsample(256, 4),  # 32, 64
-            self.downsample(512, 4),  # 16, 32
-            self.downsample(512, 4),  # 8, 16
-            self.downsample(512, 4),  # 4, 8
-            self.downsample(512, 4),  # 2, 4
-            self.downsample(512, 4)
-        ]
-
-        up_stack = [
-            self.upsample(512, 4, apply_dropout=True),
-            self.upsample(512, 4, apply_dropout=True),
-            self.upsample(512, 4, apply_dropout=True),
-            self.upsample(512, 4),
-            self.upsample(256, 4),
-            self.upsample(128, 4),
-            self.upsample(64, 4),
-        ]
-
-        initializer = tf.random_normal_initializer(0., 0.02)
-        last = tf.keras.layers.Conv2DTranspose(3, 4, strides=2, padding='same',
-                                               kernel_initializer=initializer, activation='tanh')
-
-        concat = tf.keras.layers.Concatenate()
-
-        inputs = tf.keras.layers.Input(shape=[None, None, 3])
-        x = inputs
-
-        # downsampling
-        skips = []
-        for down in down_stack:
-            x = down(x)
-            skips.append(x)
-
-        skips = reversed(skips[:-1])
-
-        # upsampling and connecting
-        for up, skip in zip(up_stack, skips):
-            x = up(x)
-            x = concat([x, skip])
-
-        x = last(x)
-
-        return tf.keras.Model(inputs=inputs, outputs=x)
-
-    def discriminator(self):
-        initializer = tf.random_normal_initializer(0., 0.02)
-
-        inp = tf.keras.layers.Input(shape=[None, None, 3], name='input_image')
-        # tar = tf.keras.layers.Input(shape=[None, None, 3], name='target_image')
-
-        # x = tf.keras.layers.concatenate([inp, tar])  # (bs, 256, 256, channels*2)
-
-        down1 = self.downsample(64, 4, apply_batchnorm=False)(inp)  # (bs, 128, 128, 64)
-        down2 = self.downsample(128, 4)(down1)  # (bs, 64, 64, 128)
-        down3 = self.downsample(256, 4)(down2)  # (bs, 32, 32, 256)
-
-        zero_pad1 = tf.keras.layers.ZeroPadding2D()(down3)  # (bs, 34, 34, 256)
-        conv = tf.keras.layers.Conv2D(512, 4, strides=1,
-                                      kernel_initializer=initializer,
-                                      use_bias=False)(zero_pad1)  # (bs, 31, 31, 512)
-
-        batchnorm1 = tf.keras.layers.BatchNormalization()(conv)
-
-        leaky_relu = tf.keras.layers.LeakyReLU()(batchnorm1)
-
-        zero_pad2 = tf.keras.layers.ZeroPadding2D()(leaky_relu)  # (bs, 33, 33, 512)
-
-        last = tf.keras.layers.Conv2D(1, 4, strides=1,
-                                      kernel_initializer=initializer)(zero_pad2)  # (bs, 30, 30, 1)
-
-        return tf.keras.Model(inputs=inp, outputs=last)
-
-    # Metricas
-    def discriminator_loss(self, real, generated):
-        real_loss = self.loss_object(tf.ones_like(real), real)
-        generated_loss = self.loss_object(tf.zeros_like(generated), generated)
-        total_disc_loss = real_loss + generated_loss
-
-        return total_disc_loss * 0.5
-
-    def generator_loss(self, generated):
-        return self.loss_object(tf.ones_like(generated), generated)
-
-    def calc_cycle_loss(self, real_image, cycled_image):
-        loss1 = tf.reduce_mean(tf.abs(real_image - cycled_image))
-        return self.LAMBDA * loss1
-
-    def identity_loss(self, real_image, same_image):
-        loss = tf.reduce_mean(tf.abs(real_image - same_image))
+    def identity_loss(self, real, same):
+        loss = tf.reduce_mean(tf.abs(real - same))
         return self.LAMBDA * 0.5 * loss
 
-    # Funciones de entrenamiento
     @tf.function
-    def train_step(self, real_x, real_y):
+    def train_step(self, train_x, train_y):
+        # train_x: ruins and temples
+        # train_y: their segmentations
+        # train_z: complete temples
         with tf.GradientTape(persistent=True) as tape:
-            # x to y and back
-            fake_y = self.generator_xy(real_x, training=True)
-            cycled_x = self.generator_yx(fake_y, training=True)
-            # y to x and back
-            fake_x = self.generator_yx(real_y, training=True)
-            cycled_y = self.generator_xy(fake_x, training=True)
+            # segmented ruins/temples
+            x_segmented = self.segmenter(train_x, training=True)
+            x_cycled = self.desegmenter(x_segmented, training=True)
 
-            # x and y through x and y generators to calculate identity loss
-            same_y = self.generator_xy(real_y, training=True)
-            same_x = self.generator_yx(real_x, training=True)
+            # desegmented segmentations
+            y_desegmented = self.desegmenter(train_y, training=True)
+            y_cycled = self.segmenter(y_desegmented, training=True)
 
-            # discriminator output for real images
-            disc_real_x = self.discriminator_x(real_x, training=True)
-            disc_real_y = self.discriminator_y(real_y, training=True)
-            # discriminator output for generated images
-            disc_fake_x = self.discriminator_x(fake_x, training=True)
-            disc_fake_y = self.discriminator_y(fake_y, training=True)
+            # reconstructions; the reconstructor should learn how to reconstruct from "ideal" images and the
+            # generated segmentations
+            # x_segmented_reconstruction = self.reconstructor(x_segmented, training=True)
+            # y_reconstruction = self.reconstructor(train_y, training=True)
 
-            # calculating the loss
-            gen_xy_loss = self.generator_loss(disc_fake_y)
-            gen_yx_loss = self.generator_loss(disc_fake_x)
+            # identity loss; segmenter and desegmenter shouldn't change images of the target domain
+            y_identity = self.segmenter(train_y, training=True)
+            x_identity = self.desegmenter(train_x, training=True)
+
+            # discriminators
+            disc_segmentation_real = self.segmenter_disc(train_y, training=True)
+            disc_segmentation_gen = self.segmenter_disc(x_segmented, training=True)
+
+            disc_desegmentation_real = self.desegmenter_disc(train_x, training=True)
+            disc_desegmentation_gen = self.desegmenter_disc(y_desegmented, training=True)
+
+            # disc_reconstruction_real = self.reconstructor(train_z, training=True)
+            # disc_reconstruction_gen = self.reconstructor(x_segmented_reconstruction, training=True)
+
+            segmenter_loss = self.generator_loss(disc_segmentation_gen)
+            desegmenter_loss = self.generator_loss(disc_desegmentation_gen)
 
             # cycle loss
-            total_cycle_loss = self.calc_cycle_loss(real_x, cycled_x) + self.calc_cycle_loss(real_y, cycled_y)
+            total_cycle_loss = self.cycle_loss(train_x, x_cycled) + self.cycle_loss(train_y, y_cycled)
 
-            # total generator loss, adversarial loss plus cycle loss
-            total_gen_xy_loss = gen_xy_loss + total_cycle_loss + self.identity_loss(real_y, same_y)
-            total_gen_yx_loss = gen_yx_loss + total_cycle_loss + self.identity_loss(real_x, same_x)
+            # total gen loss
+            total_segmenter_loss = segmenter_loss + total_cycle_loss + self.identity_loss(train_y, y_identity)
+            total_desegmenter_loss = desegmenter_loss + total_cycle_loss + self.identity_loss(train_x, x_identity)
 
-            disc_x_loss = self.discriminator_loss(disc_real_x, disc_fake_x)
-            disc_y_loss = self.discriminator_loss(disc_real_y, disc_fake_y)
-
-            # tensorboard values
-            self.train_acc_x(tf.ones_like(disc_real_x), disc_real_x)
-            self.train_acc_y(tf.ones_like(disc_fake_y), disc_real_y)
-            self.discx(disc_x_loss)
+            segmenter_disc_loss = self.discriminator_loss(disc_segmentation_real, disc_segmentation_gen)
+            desegmenter_disc_loss = self.discriminator_loss(disc_desegmentation_real, disc_desegmentation_gen)
 
         # gradients
-        gen_xy_gradients = tape.gradient(total_gen_xy_loss, self.generator_xy.trainable_variables)
-        gen_yx_gradients = tape.gradient(total_gen_yx_loss, self.generator_yx.trainable_variables)
+        segmenter_gradients = tape.gradient(total_segmenter_loss, self.segmenter.trainable_variables)
+        desegmenter_gradients = tape.gradient(total_desegmenter_loss, self.desegmenter.trainable_variables)
+        segmenter_disc_gradients = tape.gradient(segmenter_disc_loss, self.segmenter_disc.trainable_variables)
+        desegmenter_disc_gradients = tape.gradient(desegmenter_disc_loss, self.desegmenter_disc.trainable_variables)
 
-        disc_x_gradients = tape.gradient(disc_x_loss, self.discriminator_x.trainable_variables)
-        disc_y_gradients = tape.gradient(disc_y_loss, self.discriminator_y.trainable_variables)
+        self.segmenter_optimizer.apply_gradients(zip(segmenter_gradients, self.segmenter.trainable_variables))
+        self.desegmenter_optimizer.apply_gradients(zip(desegmenter_gradients, self.desegmenter.trainable_variables))
+        self.segmenter_disc_optimizer.apply_gradients(zip(segmenter_disc_gradients, self.segmenter_disc.trainable_variables))
+        self.desegmenter_disc_optimizer.apply_gradients(zip(desegmenter_disc_gradients, self.desegmenter_disc.trainable_variables))
 
-        # applying the gradients
-        self.generator_xy_optimizer.apply_gradients(zip(gen_xy_gradients, self.generator_xy.trainable_variables))
-        self.generator_yx_optimizer.apply_gradients(zip(gen_yx_gradients, self.generator_yx.trainable_variables))
+    def fit(self, train_ds, test_ds, epochs, save_path=None):
+        for epoch in range(epochs):
+            for input_image, target_image in train_ds:
+                self.train_step(input_image, target_image)
 
-        self.discriminator_x_optimizer.apply_gradients(zip(disc_x_gradients, self.discriminator_x.trainable_variables))
-        self.discriminator_y_optimizer.apply_gradients(zip(disc_y_gradients, self.discriminator_y.trainable_variables))
+            with self.train_summary_writer.as_default():
+                stack = self.get_tb_stack(train_ds)
+                tf.summary.image('train', stack, max_outputs=4, step=epoch)
 
-    def fit(self, train_ds, test_ds, save_path=None):
-        if save_path is not None:
-            if not os.path.exists(save_path):
-                os.makedirs(save_path)
+            with self.val_summary_writer.as_default():
+                stack = self.get_tb_stack(test_ds)
+                tf.summary.image('validation', stack, max_outputs=4, step=epoch)
 
-        for epoch in range(self.epochs):
-            start = time.time()
-            # Train
-            for image_x, image_y in train_ds:
-                self.train_step(image_x, image_y)
-                # writing to tensorboard
-                with self.train_summary_writer.as_default():
-                    tf.summary.scalar('x_accuracy', self.train_acc_x.result(), step=epoch)
-                    tf.summary.scalar('y_accuracy', self.train_acc_y.result(), step=epoch)
-                    tf.summary.scalar('discx_loss', self.discx.result(), step=epoch)
-
-            # reset states
-            self.train_acc_x.reset_states()
-            self.train_acc_y.reset_states()
-            self.discx.reset_states()
-
-            clear_output(wait=True)
-            print('Time taken for epoch {}: {:.2f}'.format(epoch+1, time.time() - start))
-
-            # Imagenes
-            if (epoch + 1) % 2 == 0 or epoch == 0 and self.save_path is not None:
-                for plot_test_x, plot_test_y in test_ds.take(1):
-                    self.generate_images(self.generator_xy, plot_test_x, f'{epoch}xy')
-                    self.generate_images(self.generator_yx, plot_test_y, f'{epoch}yx')
-
-    # Generación de imágenes
-    def generate_images(self, model, image, name):
-        prediction = model(image, training=False)
-
-        display_list = [image[0], prediction[0]]
-        title = ['Input image', 'Styled image']
-
-        plt.close()
-        plt.figure(figsize=(12, 12))
-        for i in range(2):
-            plt.subplot(1, 2, i+1)
-            plt.title(title[i])
-            plt.imshow(display_list[i] * 0.5 + 0.5)
-            plt.axis('off')
-        plt.savefig(f'{self.save_path}/{name}.png', pad_inches=None, bbox_inches='tight')
-        plt.show()
+    def get_tb_stack(self, dataset):
+        for x, y in dataset.take(1):
+            # x is a ruin/temple
+            # y is a segmentation
+            segmented = self.segmenter(x, training=False)
+            desegmented = self.desegmenter(y, training=False)
+            stack = tf.stack([x, segmented, desegmented, y], axis=0) * 0.5 + 0.5
+            stack = tf.squeeze(stack)
+            return stack
 
 
-class InstanceNormalization(tf.keras.layers.Layer):
-    def __init__(self, epsilon=1e-5):
-        super(InstanceNormalization, self).__init__()
-        self.epsilon = epsilon
-
-    def build(self, input_shape):
-        self.scale = self.add_weight(
-            name='scale',
-            shape=input_shape[-1:],
-            initializer=tf.random_normal_initializer(1., 0.02),
-            trainable=True
-        )
-
-        self.offset = self.add_weight(
-            name='offset',
-            shape=input_shape[-1:],
-            initializer='zeros',
-            trainable=True
-        )
-
-    def call(self, x):
-        mean, variance = tf.nn.moments(x, axes=[1, 2], keepdims=True)
-        inv = tf.math.rsqrt(variance + self.epsilon)
-        normalized = (x - mean) * inv
-        return self.scale + normalized + self.offset
-
-
-if __name__ == "__main__":
-    cyclegan = CycleGAN(save_path='/test/')
-
-    paths_fakes = glob.glob('C:/Users/Ceiec06/Documents/GitHub/CEIEC-GANs/styleGAN/flowers/daisy/*.png')
-    paths_reals = glob.glob('C:/Users/Ceiec06/Documents/GitHub/CEIEC-GANs/styleGAN/hokusai/*.png')
-
-    train, test = cyclegan.gen_dataset(paths_x=paths_reals, paths_y=paths_fakes)
-    cyclegan.fit(train, test, save_path='test/')
+if __name__ == '__main__':
+    cyclegan = CycleGAN(log_dir=r'logs\\cyclegan')
+    train, test = cyclegan.get_complete_datset(temples=['temple_0'], mode='ruins_to_temples')
+    cyclegan.fit(train, test, 50)
