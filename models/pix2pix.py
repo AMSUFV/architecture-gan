@@ -63,7 +63,6 @@ class Pix2Pix(BaseModel):
 
         # TODO: Single responsibility; sacar las métricas
         # Tensorboard
-        log_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\pix2pix'
         self.train_summary_writer = self.set_logdir(log_dir, 'train')
         self.val_summary_writer = self.set_logdir(log_dir, 'validation')
 
