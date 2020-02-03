@@ -2,7 +2,7 @@ import glob
 import tensorflow as tf
 from models.pix2pix import Pix2Pix
 from models.pix2pix import downsample, upsample
-from models.utils import custom_preprocessing as cp
+from utils import custom_preprocessing as cp
 
 
 class HybridReconstuctor(Pix2Pix):
@@ -129,6 +129,6 @@ class HybridReconstuctor(Pix2Pix):
 
 
 if __name__ == '__main__':
-    reconstructor = HybridReconstuctor(log_dir=r'logs\\test')
+    reconstructor = HybridReconstuctor(log_dir=r'../logs\\test')
     train = reconstructor.get_dataset(['temple_0'])
     reconstructor.fit(train, 100)

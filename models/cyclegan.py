@@ -130,6 +130,6 @@ class CycleGAN(CustomPix2Pix):
 
 
 if __name__ == '__main__':
-    cyclegan = CycleGAN(log_dir=r'logs\\cyclegan')
+    cyclegan = CycleGAN(log_dir=r'../logs\\cyclegan')
     train, test = cyclegan.get_complete_datset(temples=['temple_0'], mode='ruins_to_temples')
     cyclegan.fit(train, test, 50)

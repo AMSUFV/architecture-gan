@@ -9,9 +9,8 @@ from itertools import compress
 from sklearn.model_selection import train_test_split
 
 # modelo base y preprocesamiento
-from models.utils import pix2pix_preprocessing as preprocessing
-from models.utils.basemodel import BaseModel
-from models.utils import custom_preprocessing as cp
+from utils import pix2pix_preprocessing as preprocessing
+from utils.basemodel import BaseModel
 
 
 # Convenience functions
