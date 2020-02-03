@@ -63,21 +63,23 @@ class Pix2Pix(BaseModel):
 
         # TODO: Single responsibility; sacar las métricas
         # Tensorboard
-        self.train_summary_writer = self.set_logdir(log_dir, 'train')
-        self.val_summary_writer = self.set_logdir(log_dir, 'validation')
+        self.log_dir = log_dir
+        if self.log_dir is not None:
+            self.train_summary_writer = self.set_logdir(self.log_dir, 'train')
+            self.val_summary_writer = self.set_logdir(self.log_dir, 'validation')
 
-        # Métricas
-        self.train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
-        self.train_real_acc = tf.keras.metrics.BinaryAccuracy('train_real_accuracy')
-        self.train_gen_acc = tf.keras.metrics.BinaryAccuracy('train_gen_accuracy')
+            # Métricas
+            self.train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
+            self.train_real_acc = tf.keras.metrics.BinaryAccuracy('train_real_accuracy')
+            self.train_gen_acc = tf.keras.metrics.BinaryAccuracy('train_gen_accuracy')
 
-        self.val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
-        self.val_gen_acc = tf.keras.metrics.BinaryAccuracy('val_gen_accuracy')
-        self.val_real_acc = tf.keras.metrics.BinaryAccuracy('val_real_accuracy')
+            self.val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
+            self.val_gen_acc = tf.keras.metrics.BinaryAccuracy('val_gen_accuracy')
+            self.val_real_acc = tf.keras.metrics.BinaryAccuracy('val_real_accuracy')
 
-        # generator loss
-        self.train_gen_loss = tf.keras.metrics.Mean('train_gen_loss', dtype=tf.float32)
-        self.val_gen_loss = tf.keras.metrics.Mean('val_gen_loss', dtype=tf.float32)
+            # generator loss
+            self.train_gen_loss = tf.keras.metrics.Mean('train_gen_loss', dtype=tf.float32)
+            self.val_gen_loss = tf.keras.metrics.Mean('val_gen_loss', dtype=tf.float32)
 
     @staticmethod
     def set_logdir(path, name='train'):
@@ -285,9 +287,10 @@ class Pix2Pix(BaseModel):
         self.discriminator_optimizer.apply_gradients(
             zip(discriminator_gradients, self.discriminator.trainable_variables))
 
-        self.train_loss(disc_loss)
-        self.train_real_acc(tf.ones_like(disc_real_output), disc_real_output)
-        self.train_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
+        if self.log_dir is not None:
+            self.train_loss(disc_loss)
+            self.train_real_acc(tf.ones_like(disc_real_output), disc_real_output)
+            self.train_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
 
     def validate(self, test_in, test_out):
         gen_output = self.generator(test_in, training=False)
@@ -298,11 +301,12 @@ class Pix2Pix(BaseModel):
         gen_loss = self.generator_loss(disc_generated_output, gen_output, test_out)
         disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
 
-        self.val_loss(disc_loss)
-        self.val_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
-        self.val_real_acc(tf.ones_like(disc_real_output), disc_real_output)
+        if self.log_dir is not None:
+            self.val_loss(disc_loss)
+            self.val_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
+            self.val_real_acc(tf.ones_like(disc_real_output), disc_real_output)
 
-    def fit(self, train_ds, test_ds, epochs):
+    def fit(self, train_ds, test_ds, epochs=5):
         for epoch in range(epochs):
             # Train
             for input_image, target in train_ds:
@@ -311,28 +315,28 @@ class Pix2Pix(BaseModel):
             for input_image, target_image in test_ds:
                 self.validate(input_image, target_image)
 
-            with self.train_summary_writer.as_default():
-                tf.summary.scalar('loss', self.train_loss.result(), step=epoch)
-                tf.summary.scalar('accuracy real', self.train_real_acc.result(), step=epoch)
-                tf.summary.scalar('accuracy generated', self.train_gen_acc.result(), step=epoch)
-
-            with self.val_summary_writer.as_default():
-                tf.summary.scalar('loss', self.val_loss.result(), step=epoch)
-                tf.summary.scalar('accuracy real', self.val_real_acc.result(), step=epoch)
-                tf.summary.scalar('accuracy generated', self.val_gen_acc.result(), step=epoch)
-
-            self.predict(self.generator, test_ds, self.val_summary_writer, 'validation', epoch, 1)
-            self.predict(self.generator, train_ds, self.train_summary_writer, 'train', epoch, 1)
-
-            #
             # Tensorboard
-            self.train_loss.reset_states()
-            self.train_gen_acc.reset_states()
-            self.train_real_acc.reset_states()
+            if self.log_dir is not None:
+                with self.train_summary_writer.as_default():
+                    tf.summary.scalar('loss', self.train_loss.result(), step=epoch)
+                    tf.summary.scalar('accuracy real', self.train_real_acc.result(), step=epoch)
+                    tf.summary.scalar('accuracy generated', self.train_gen_acc.result(), step=epoch)
 
-            self.val_loss.reset_states()
-            self.val_gen_acc.reset_states()
-            self.val_real_acc.reset_states()
+                with self.val_summary_writer.as_default():
+                    tf.summary.scalar('loss', self.val_loss.result(), step=epoch)
+                    tf.summary.scalar('accuracy real', self.val_real_acc.result(), step=epoch)
+                    tf.summary.scalar('accuracy generated', self.val_gen_acc.result(), step=epoch)
+
+                self.predict(self.generator, test_ds, self.val_summary_writer, 'validation', epoch, 1)
+                self.predict(self.generator, train_ds, self.train_summary_writer, 'train', epoch, 1)
+
+                self.train_loss.reset_states()
+                self.train_gen_acc.reset_states()
+                self.train_real_acc.reset_states()
+
+                self.val_loss.reset_states()
+                self.val_gen_acc.reset_states()
+                self.val_real_acc.reset_states()
 
     @staticmethod
     def predict(model, dataset, writer, tag, step, samples=1):
@@ -490,10 +494,17 @@ class Reconstructor:
             self.step += 1
 
 
+def working_test():
+    sample_model = Pix2Pix()
+    input_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples\temple_0'
+    output_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\colors_temples\colors_temple_0'
+    train, test = sample_model.get_dataset(input_path, output_path)
+    sample_model.fit(train, test, 1)
+
+
 if __name__ == '__main__':
     # TODO: Si bien esta es la implementación base "naive" (usando pix2pix para todo, sin introducir modificaciones)
     #  puede mejorarse convirtiendo esa segmentación y desegmentación en un CycleGAN. Mejorará también una vez se
     #  tengan todos los templos con sus respectivos colores.
 
-    gen = Pix2Pix.build_generator()
-    gen.summary()
+    working_test()

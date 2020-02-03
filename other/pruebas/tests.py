@@ -3,6 +3,7 @@ from PIL import ImageFilter
 import os
 import glob
 
+from models.pix2pix import Pix2Pix
 
 def change_extension(folder_path, current_extension, desired_extension):
     paths = folder_path + r'\*' + current_extension
