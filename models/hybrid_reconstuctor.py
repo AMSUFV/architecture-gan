@@ -6,21 +6,25 @@ from utils import custom_preprocessing as cp
 
 
 class HybridReconstuctor(Pix2Pix):
-    def get_dataset(self, temples, split=0.2, dataset_path=None):
+    def get_dataset(self, temples, split=0.2, dataset_path=None, ruins_per_temple=2):
         if dataset_path is None:
             dataset_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\\'
 
+        datasets = []
         for i, temple in enumerate(temples):
 
-            ruins_path = dataset_path + r'temples_ruins\\' + temple + '*'
-            colors_path = dataset_path + r'colors_temples\colors_' + temple
-            temple_path = dataset_path + r'temples\\' + temple
+            ruins_path = dataset_path + r'\temples_ruins\\' + temple + '*'
+            colors_path = dataset_path + r'\colors_temples\colors_' + temple
+            temple_path = dataset_path + r'\temples\\' + temple
 
-            if i == 0:
-                train_dataset = self.get_single_dataset(ruins_path, colors_path, temple_path)
-            else:
-                tr = self.get_single_dataset(ruins_path, colors_path, temple_path)
-                train_dataset = train_dataset.concatenate(tr)
+            datasets.append(self.get_single_dataset(ruins_path, colors_path, temple_path))
+
+        train_dataset = datasets[0]
+        datasets.pop(0)
+        for dataset in datasets:
+            train_dataset = train_dataset.concatenate(dataset)
+        buffer_size = len(temples) * ruins_per_temple * 300
+        train_dataset = train_dataset.shuffle(buffer_size)
 
         return train_dataset
 
@@ -31,9 +35,9 @@ class HybridReconstuctor(Pix2Pix):
         temple_path_list = glob.glob(temple_path + r'\*.png')
 
         batch_size = 1
-        buffer_size = len(ruins_path_list)
+        # buffer_size = len(ruins_path_list)
 
-        repetition = len(temple_path_list) // len(ruins_path_list)
+        repetition = len(ruins_path_list) // len(temple_path_list)
 
         ruins_dataset = tf.data.Dataset.list_files(ruins_path_list, shuffle=False)
         colors_dataset = tf.data.Dataset.list_files(colors_path_list, shuffle=False)
@@ -43,7 +47,7 @@ class HybridReconstuctor(Pix2Pix):
         temple_dataset = temple_dataset.repeat(repetition)
 
         train_dataset = tf.data.Dataset.zip((ruins_dataset, colors_dataset, temple_dataset))
-        train_dataset = train_dataset.map(cp.load_images_train).shuffle(buffer_size).batch(batch_size)
+        train_dataset = train_dataset.map(cp.load_images_train).batch(batch_size)
 
         return train_dataset
 
@@ -97,7 +101,7 @@ class HybridReconstuctor(Pix2Pix):
 
         return tf.keras.Model(inputs=[ruin_image, color_image], outputs=x)
 
-    def fit(self, train_ds, epochs):
+    def fit(self, train_ds, test_ds=None, epochs=100):
         for epoch in range(epochs):
             # Train
             for ruin, color, temple in train_ds:
@@ -128,7 +132,13 @@ class HybridReconstuctor(Pix2Pix):
         self.discriminator_optimizer.apply_gradients(zip(disc_gradients, self.discriminator.trainable_variables))
 
 
-if __name__ == '__main__':
-    reconstructor = HybridReconstuctor(log_dir=r'../logs\\test')
-    train = reconstructor.get_dataset(['temple_0'])
+def main():
+    log_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\ruins_and_segmentations'
+    ds_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\sketchup\dataset'
+    reconstructor = HybridReconstuctor(log_dir=log_path)
+    train = reconstructor.get_dataset(['temple_0', 'temple_5'], dataset_path=ds_path)
     reconstructor.fit(train, 100)
+
+
+if __name__ == '__main__':
+    main()

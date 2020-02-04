@@ -1,5 +1,5 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
-
+# TODO: Make sure everything goes where it should go; logs, saved models, etc.
 import datetime
 import numpy as np
 import tensorflow as tf
@@ -47,7 +47,7 @@ def upsample(filters, size, apply_dropout=False):
 
 
 # TODO add training checkpoints
-class Pix2Pix(BaseModel):
+class Pix2Pix:
     def __init__(self, *, gen_path=None, disc_path=None, log_dir=None):
 
         self.generator = self.set_weights(gen_path, self.build_generator, 'initial_generator')
@@ -86,6 +86,19 @@ class Pix2Pix(BaseModel):
         log_path = rf'{path}\\{current_time}\\{name}'
         writer = tf.summary.create_file_writer(log_path)
         return writer
+
+    def set_weights(self, path, func, name='model', save_weights=False):
+        if path is not None:
+            model = tf.keras.models.load_model(path)
+        else:
+            model = func()
+            if save_weights:
+                self.save_weights(model, f'{name}.h5')
+        return model
+
+    @staticmethod
+    def save_weights(model, name):
+        model.save(name)
 
     @staticmethod
     def build_generator(initial_units=64, filter_size=4, layers=8):
@@ -194,18 +207,6 @@ class Pix2Pix(BaseModel):
         else:
             return tf.keras.Model(inputs=inp, outputs=last)
 
-    def set_weights(self, path, func, name='model'):
-        if path is not None:
-            model = tf.keras.models.load_model(path)
-        else:
-            model = func()
-            self.save_weights(model, f'{name}.h5')
-        return model
-
-    @staticmethod
-    def save_weights(model, name):
-        model.save(name)
-
     @staticmethod
     def set_input_shape(width, height):
         preprocessing.IMG_WIDTH = width
@@ -247,7 +248,6 @@ class Pix2Pix(BaseModel):
         return train_dataset, test_dataset
 
     # Metrics
-    # class metrics:
     def discriminator_loss(self, disc_real_output, disc_generated_output):
         real_loss = self.loss_object(tf.ones_like(disc_real_output), disc_real_output)
 
@@ -260,7 +260,6 @@ class Pix2Pix(BaseModel):
     def generator_loss(self, disc_generated_output, gen_output, target):
         g_loss = self.loss_object(tf.ones_like(disc_generated_output), disc_generated_output)
 
-        # mean absolute error
         l1_loss = tf.reduce_mean(tf.abs(target - gen_output))
 
         total_gen_loss = g_loss + (self.LAMBDA * l1_loss)
@@ -305,14 +304,15 @@ class Pix2Pix(BaseModel):
             self.val_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
             self.val_real_acc(tf.ones_like(disc_real_output), disc_real_output)
 
-    def fit(self, train_ds, test_ds, epochs=5):
+    def fit(self, train_ds, test_ds=None, epochs=5):
         for epoch in range(epochs):
             # Train
             for input_image, target in train_ds:
                 self.train_step(input_image, target)
-            # # Validation
-            for input_image, target_image in test_ds:
-                self.validate(input_image, target_image)
+            # Validation
+            if test_ds is not None:
+                for input_image, target_image in test_ds:
+                    self.validate(input_image, target_image)
 
             # Tensorboard
             if self.log_dir is not None:
