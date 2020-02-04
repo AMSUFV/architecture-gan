@@ -38,6 +38,14 @@ def random_jitter(images):
     images = resize(new_width, new_height, images)
     images = random_crop(images)
 
+    if tf.random.uniform(()) > 0.5:
+        images[0] = tf.image.random_brightness(images[0], 0.3)
+    if tf.random.uniform(()) > 0.5:
+        images[0] = tf.image.random_contrast(images[0], 0.8, 1.2)
+    if tf.random.uniform(()) > 0.5:
+        images[0] = tf.image.random_saturation(images[0], 0.8, 1.2)
+
+    # TODO: add random brightness and contrast
     # if tf.random.uniform(()) > 0.5:
     #     flipped_images = []
     #     for image in images:

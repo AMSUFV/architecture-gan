@@ -98,7 +98,7 @@ class Pix2Pix:
 
     @staticmethod
     def save_weights(model, name):
-        model.save(name)
+        model.save(f'{name}.h5')
 
     @staticmethod
     def build_generator(initial_units=64, filter_size=4, layers=8):

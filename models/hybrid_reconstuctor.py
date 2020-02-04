@@ -135,9 +135,11 @@ class HybridReconstuctor(Pix2Pix):
 def main():
     log_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\ruins_and_segmentations'
     ds_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\sketchup\dataset'
+    cp.RESIZE_FACTOR = 1.3
     reconstructor = HybridReconstuctor(log_dir=log_path)
-    train = reconstructor.get_dataset(['temple_0', 'temple_5'], dataset_path=ds_path)
-    reconstructor.fit(train, 100)
+    train = reconstructor.get_dataset(['temple_0', 'temple_1', 'temple_5'], dataset_path=ds_path)
+    reconstructor.fit(train, 50)
+    reconstructor.save_weights(reconstructor.generator, 'ruinseg')
 
 
 if __name__ == '__main__':

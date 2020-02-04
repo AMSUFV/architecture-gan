@@ -9,7 +9,7 @@ class MetricLogger:
     Para emplear esta clase, crear un nuevo MetricLogger en el init, elegir  y las métricas que se quieren emplear a
     través de add_metric
     """
-    def __init__(self, log_dir='logs', default_metrics=False, datasets=None):
+    def __init__(self, log_dir, default_metrics=False, datasets=None):
         """
         Se inicializa indicándole en qué directorio se guardarán los logs. Por defecto se guardarán en el directorio
         logs.
