@@ -1,5 +1,6 @@
 import glob
 import tensorflow as tf
+import numpy as np
 from models.pix2pix import Pix2Pix
 from models.pix2pix import downsample, upsample
 from utils import custom_preprocessing as cp
@@ -29,7 +30,12 @@ class HybridReconstuctor(Pix2Pix):
         return train_dataset
 
     @staticmethod
-    def get_single_dataset(ruins_path, colors_path, temple_path, split=0.2):
+    def get_single_dataset(ruins_path, colors_path, temple_path, split=0.2, mode='train'):
+        if mode == 'train':
+            preprocessing_function = cp.load_images_train
+        else:
+            preprocessing_function = cp.load_images_test
+
         ruins_path_list = glob.glob(ruins_path + r'\*.png')
         colors_path_list = glob.glob(colors_path + r'\*.png')
         temple_path_list = glob.glob(temple_path + r'\*.png')
@@ -47,7 +53,7 @@ class HybridReconstuctor(Pix2Pix):
         temple_dataset = temple_dataset.repeat(repetition)
 
         train_dataset = tf.data.Dataset.zip((ruins_dataset, colors_dataset, temple_dataset))
-        train_dataset = train_dataset.map(cp.load_images_train).batch(batch_size)
+        train_dataset = train_dataset.map(preprocessing_function).batch(batch_size)
 
         return train_dataset
 
@@ -104,18 +110,18 @@ class HybridReconstuctor(Pix2Pix):
     def fit(self, train_ds, test_ds=None, epochs=100):
         for epoch in range(epochs):
             # Train
-            for ruin, color, temple in train_ds:
-                self.train_step(ruin, color, temple)
+            for ruin, temple, color in train_ds:
+                self.train_step(ruin, temple, color)
 
-            for x, y, z in train_ds.take(1):
-                pred = self.generator([x, y], training=False)
-                stack = tf.stack([x, y, z, pred], axis=0) * 0.5 + 0.5
+            for ruin, temple, color in train_ds.take(1):
+                pred = self.generator([ruin, color], training=False)
+                stack = tf.stack([ruin, color, temple, pred], axis=0) * 0.5 + 0.5
                 stack = tf.squeeze(stack)
                 with self.train_summary_writer.as_default():
                     tf.summary.image('train', stack, max_outputs=4, step=epoch)
 
     @tf.function
-    def train_step(self, ruin, color, temple):
+    def train_step(self, ruin, temple, color):
         with tf.GradientTape(persistent=True) as tape:
             gen_output = self.generator([ruin, color], training=True)
 
@@ -131,6 +137,26 @@ class HybridReconstuctor(Pix2Pix):
         self.generator_optimizer.apply_gradients(zip(gen_gradients, self.generator.trainable_variables))
         self.discriminator_optimizer.apply_gradients(zip(disc_gradients, self.discriminator.trainable_variables))
 
+    # prediction methods
+    def predict(self, dataset, log_path, samples, shuffle=True):
+        writer = self.set_logdir(log_path, 'predict')
+        step = 0
+        if samples == 'all':
+            target = dataset
+        else:
+            target = dataset.take(samples)
+
+        for x, y, z in target:
+            # x is the input
+            prediction = self.generator([x, z], training=False)
+            stack = tf.stack([x, prediction, z], axis=0) * 0.5 + 0.5
+            stack = tf.squeeze(stack)
+
+            with writer.as_default():
+                tf.summary.image('predictions', stack, step=step, max_outputs=3)
+
+            step += 1
+
 
 def main():
     log_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\ruins_and_segmentations'
@@ -139,8 +165,22 @@ def main():
     reconstructor = HybridReconstuctor(log_dir=log_path)
     train = reconstructor.get_dataset(['temple_0', 'temple_1', 'temple_5'], dataset_path=ds_path)
     reconstructor.fit(train, 50)
-    reconstructor.save_weights(reconstructor.generator, 'ruinseg')
+
+
+def predict_batch(target='temple_0', ruins=1):
+    temple = target
+
+    log_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\ruins_and_segmentations\\' + temple
+
+    ds_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\sketchup\dataset\\'
+    ruins = ds_path + r'temples_ruins\\' + temple + f'_ruins_{ruins}'
+    colors = ds_path + r'colors_temples\colors_' + temple
+    temples = ds_path + r'temples\\' + temple
+
+    reconstructor = HybridReconstuctor(gen_path='../trained_models/ruinseg.h5')
+    predict_ds = reconstructor.get_single_dataset(ruins, colors, temples, mode='predict')
+    reconstructor.predict(predict_ds, log_path, samples='all')
 
 
 if __name__ == '__main__':
-    main()
+    predict_batch(target='temple_0', ruins=1)
