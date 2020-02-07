@@ -102,49 +102,26 @@ class Pix2Pix:
         model.save(f'{name}.h5')
 
     @staticmethod
-    def build_generator(initial_units=64, filter_size=4, layers=8):
-        down_stack = []
-        units = []
-        multiplier = 1
-        for i in range(layers):
-            if i == 0:
-                down_stack.append(downsample(initial_units * multiplier, filter_size, apply_batchnorm=False))
-            else:
-                down_stack.append(downsample(initial_units * multiplier, filter_size))
-
-            units.append(initial_units * multiplier)
-
-            if multiplier < 8:
-                multiplier *= 2
-
-        # up_stack = []
-        # units.pop(-1)
-        # for i, unit in enumerate(units[::-1]):
-        #     if i < 3:
-        #         up_stack.append(upsample(units, filter_size, apply_dropout=True))
-        #     else:
-        #         up_stack.append(upsample(units, filter_size))
-
-        # down_stack = [
-        #     downsample(64, 4, apply_batchnorm=False),
-        #     downsample(128, 4),
-        #     downsample(256, 4),
-        #     downsample(512, 4),
-        #     downsample(512, 4),
-        #     downsample(512, 4),
-        #     downsample(512, 4),
-        #     downsample(512, 4)
-        # ]
-        # TODO: Solve this; this will fail if values different to the specified are used in the function call
+    def build_generator():
+        down_stack = [
+            downsample(64, 4, apply_batchnorm=False),
+            downsample(128, 4),
+            downsample(256, 4),
+            downsample(512, 4),
+            downsample(512, 4),
+            downsample(512, 4),
+            downsample(512, 4),
+            downsample(512, 4)
+        ]
         up_stack = [
-                    upsample(512, 4, apply_dropout=True),
-                    upsample(512, 4, apply_dropout=True),
-                    upsample(512, 4, apply_dropout=True),
-                    upsample(512, 4),
-                    upsample(256, 4),
-                    upsample(128, 4),
-                    upsample(64, 4)
-                ]
+            upsample(512, 4, apply_dropout=True),
+            upsample(512, 4, apply_dropout=True),
+            upsample(512, 4, apply_dropout=True),
+            upsample(512, 4),
+            upsample(256, 4),
+            upsample(128, 4),
+            upsample(64, 4)
+        ]
 
         initializer = tf.random_normal_initializer(0., 0.02)
         last = tf.keras.layers.Conv2DTranspose(3, 4, strides=2, padding='same',
@@ -557,5 +534,4 @@ if __name__ == '__main__':
     # TODO: Si bien esta es la implementación base "naive" (usando pix2pix para todo, sin introducir modificaciones)
     #  puede mejorarse convirtiendo esa segmentación y desegmentación en un CycleGAN. Mejorará también una vez se
     #  tengan todos los templos con sus respectivos colores.
-
-    working_test()
+    other_gen = Pix2Pix.build_generator()
