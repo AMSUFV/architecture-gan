@@ -18,7 +18,7 @@ class HybridReconstuctor(Pix2Pix):
             colors_path = dataset_path + r'\colors_temples\colors_' + temple
             temple_path = dataset_path + r'\temples\\' + temple
 
-            datasets.append(self.get_single_dataset(ruins_path, colors_path, temple_path))
+            datasets.append(self.get_single_dataset(ruins_path, temple_path, colors_path))
 
         train_dataset = datasets[0]
         datasets.pop(0)
@@ -30,7 +30,7 @@ class HybridReconstuctor(Pix2Pix):
         return train_dataset
 
     @staticmethod
-    def get_single_dataset(ruins_path, colors_path, temple_path, split=0.2, mode='train'):
+    def get_single_dataset(ruins_path, temple_path, colors_path, split=0.2, mode='train'):
         if mode == 'train':
             preprocessing_function = cp.load_images_train
         else:
@@ -52,7 +52,7 @@ class HybridReconstuctor(Pix2Pix):
         colors_dataset = colors_dataset.repeat(repetition)
         temple_dataset = temple_dataset.repeat(repetition)
 
-        train_dataset = tf.data.Dataset.zip((ruins_dataset, colors_dataset, temple_dataset))
+        train_dataset = tf.data.Dataset.zip((ruins_dataset, temple_dataset, colors_dataset))
         train_dataset = train_dataset.map(preprocessing_function).batch(batch_size)
 
         return train_dataset
@@ -107,19 +107,6 @@ class HybridReconstuctor(Pix2Pix):
 
         return tf.keras.Model(inputs=[ruin_image, color_image], outputs=x)
 
-    def fit(self, train_ds, test_ds=None, epochs=100):
-        for epoch in range(epochs):
-            # Train
-            for ruin, temple, color in train_ds:
-                self.train_step(ruin, temple, color)
-
-            for ruin, temple, color in train_ds.take(1):
-                pred = self.generator([ruin, color], training=False)
-                stack = tf.stack([ruin, color, temple, pred], axis=0) * 0.5 + 0.5
-                stack = tf.squeeze(stack)
-                with self.train_summary_writer.as_default():
-                    tf.summary.image('train', stack, max_outputs=4, step=epoch)
-
     @tf.function
     def train_step(self, ruin, temple, color):
         with tf.GradientTape(persistent=True) as tape:
@@ -137,9 +124,17 @@ class HybridReconstuctor(Pix2Pix):
         self.generator_optimizer.apply_gradients(zip(gen_gradients, self.generator.trainable_variables))
         self.discriminator_optimizer.apply_gradients(zip(disc_gradients, self.discriminator.trainable_variables))
 
+    def fit(self, train_ds, test_ds=None, epochs=100):
+        for epoch in range(epochs):
+            # Train
+            for ruin, temple, color in train_ds:
+                self.train_step(ruin, temple, color)
+
+            self._train_predict(train_ds, self.train_summary_writer, 'train', epoch)
+
     # prediction methods
-    def predict(self, dataset, log_path, samples, shuffle=True):
-        writer = self.set_logdir(log_path, 'predict')
+    def predict(self, dataset, log_path, samples):
+        writer = self._set_logdir(log_path, 'predict')
         step = 0
         if samples == 'all':
             target = dataset
@@ -149,7 +144,7 @@ class HybridReconstuctor(Pix2Pix):
         for x, y, z in target:
             # x is the input
             prediction = self.generator([x, z], training=False)
-            stack = tf.stack([x, prediction, z], axis=0) * 0.5 + 0.5
+            stack = tf.stack([x, prediction, y], axis=0) * 0.5 + 0.5
             stack = tf.squeeze(stack)
 
             with writer.as_default():
@@ -157,30 +152,38 @@ class HybridReconstuctor(Pix2Pix):
 
             step += 1
 
+    def _train_predict(self, dataset, writer, name, step):
+        for x, y, z in dataset.take(1):
+            generated = self.generator([x, z], training=False)
+            stack = tf.stack([x, generated, y], axis=0) * 0.5 + 0.5
+            stack = tf.squeeze(stack)
+            with writer.as_default():
+                tf.summary.image(name, stack, step=step, max_outputs=3)
+
 
 def main():
     log_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\ruins_and_segmentations'
-    ds_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\sketchup\dataset'
+    ds_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset'
     cp.RESIZE_FACTOR = 1.3
     reconstructor = HybridReconstuctor(log_dir=log_path)
     train = reconstructor.get_dataset(['temple_0', 'temple_1', 'temple_5'], dataset_path=ds_path)
     reconstructor.fit(train, 50)
 
 
-def predict_batch(target='temple_0', ruins=1):
+def predict_batch(target='temple_6', ruins=1):
     temple = target
 
     log_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\logs\ruins_and_segmentations\\' + temple
 
-    ds_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\sketchup\dataset\\'
+    ds_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\\'
     ruins = ds_path + r'temples_ruins\\' + temple + f'_ruins_{ruins}'
     colors = ds_path + r'colors_temples\colors_' + temple
     temples = ds_path + r'temples\\' + temple
 
     reconstructor = HybridReconstuctor(gen_path='../trained_models/ruinseg.h5')
-    predict_ds = reconstructor.get_single_dataset(ruins, colors, temples, mode='predict')
+    predict_ds = reconstructor.get_single_dataset(ruins, temples, colors, mode='predict')
     reconstructor.predict(predict_ds, log_path, samples='all')
 
 
 if __name__ == '__main__':
-    predict_batch(target='temple_0', ruins=1)
+    predict_batch(target='temple_6', ruins=1)

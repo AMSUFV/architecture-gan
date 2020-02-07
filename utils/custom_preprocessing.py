@@ -1,10 +1,9 @@
 import tensorflow as tf
 
 IMG_WIDTH = 512
-IMG_HEIGHT = 256
+IMG_HEIGHT = 384
 RESIZE_FACTOR = 1.1
 # Position of images subject to jitter
-MOD_POS = [0]
 
 
 def load_images_train(*paths):

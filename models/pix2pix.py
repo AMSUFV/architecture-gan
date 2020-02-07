@@ -51,8 +51,8 @@ def upsample(filters, size, apply_dropout=False):
 class Pix2Pix:
     def __init__(self, *, gen_path=None, disc_path=None, log_dir=None):
 
-        self.generator = self.set_weights(gen_path, self.build_generator, 'initial_generator')
-        self.discriminator = self.set_weights(disc_path, self.build_discriminator, 'initial_discriminator')
+        self.generator = self._set_weights(gen_path, self.build_generator, 'initial_generator')
+        self.discriminator = self._set_weights(disc_path, self.build_discriminator, 'initial_discriminator')
 
         self.generator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
         self.discriminator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
@@ -65,8 +65,8 @@ class Pix2Pix:
         # Tensorboard
         self.log_dir = log_dir
         if self.log_dir is not None:
-            self.train_summary_writer = self.set_logdir(self.log_dir, 'train')
-            self.val_summary_writer = self.set_logdir(self.log_dir, 'validation')
+            self.train_summary_writer = self._set_logdir(self.log_dir, 'train')
+            self.val_summary_writer = self._set_logdir(self.log_dir, 'validation')
 
             # Métricas
             self.train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
@@ -82,13 +82,13 @@ class Pix2Pix:
             self.val_gen_loss = tf.keras.metrics.Mean('val_gen_loss', dtype=tf.float32)
 
     @staticmethod
-    def set_logdir(path, name='train'):
+    def _set_logdir(path, name='train'):
         current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
         log_path = rf'{path}\\{current_time}\\{name}'
         writer = tf.summary.create_file_writer(log_path)
         return writer
 
-    def set_weights(self, path, func, name='model', save_weights=False):
+    def _set_weights(self, path, func, name='model', save_weights=False):
         if path is not None:
             model = tf.keras.models.load_model(path)
         else:
@@ -135,7 +135,7 @@ class Pix2Pix:
         #     downsample(512, 4),
         #     downsample(512, 4)
         # ]
-
+        # TODO: Solve this; this will fail if values different to the specified are used in the function call
         up_stack = [
                     upsample(512, 4, apply_dropout=True),
                     upsample(512, 4, apply_dropout=True),
@@ -208,30 +208,20 @@ class Pix2Pix:
         else:
             return tf.keras.Model(inputs=inp, outputs=last)
 
+    # TODO: add this to the get_dataset method
     @staticmethod
     def set_input_shape(width, height):
         preprocessing.IMG_WIDTH = width
         preprocessing.IMG_HEIGHT = height
 
     @staticmethod
-    def get_dataset(input_path, real_path, split=0.2, file_shuffle=False):
-        """Método genérico de creación de datasets
-
-        :param input_path: ruta a la carpeta con los inputs de la red
-        :param real_path: ruta a la carpeta con los outputs esperados
-        :param split: porcentaje de division train/test
-        :param file_shuffle: barajar o no los archivos; igualar a  False si inputs y outputs guardan relación directa
-        :return: train_dataset, test_dataset
-        """
-        buffer_size = max(len(input_path), len(real_path))
-        batch_size = 1
+    def get_dataset(input_path, output_path, split=0.2, batch_size=1, file_shuffle=False):
+        buffer_size = max(len(input_path), len(output_path))
 
         input_path = glob.glob(input_path + r'\*.png')
-        real_path = glob.glob(real_path + r'\*.png')
-        input_path = input_path[:buffer_size]
-        real_path = real_path[:buffer_size]
+        output_path = glob.glob(output_path + r'\*.png')
 
-        x_train, x_test, y_train, y_test = train_test_split(input_path, real_path, test_size=split)
+        x_train, x_test, y_train, y_test = train_test_split(input_path, output_path, test_size=split)
 
         # train
         input_dataset = tf.data.Dataset.list_files(x_train, shuffle=file_shuffle)
@@ -240,8 +230,9 @@ class Pix2Pix:
         train_dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
         train_dataset = train_dataset.map(preprocessing.load_images_train).shuffle(buffer_size).batch(batch_size)
 
-        input_dataset = tf.data.Dataset.list_files(x_test, shuffle=False)
-        output_dataset = tf.data.Dataset.list_files(y_test, shuffle=False)
+        # validation
+        input_dataset = tf.data.Dataset.list_files(x_test, shuffle=file_shuffle)
+        output_dataset = tf.data.Dataset.list_files(y_test, shuffle=file_shuffle)
 
         test_dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
         test_dataset = test_dataset.map(preprocessing.load_images_train).batch(batch_size)
@@ -322,7 +313,7 @@ class Pix2Pix:
                     tf.summary.scalar('accuracy real', self.train_real_acc.result(), step=epoch)
                     tf.summary.scalar('accuracy generated', self.train_gen_acc.result(), step=epoch)
 
-                self.predict(train_ds, self.train_summary_writer, epoch)
+                self._train_predict(train_ds, self.train_summary_writer, 'train', epoch)
 
                 self.train_loss.reset_states()
                 self.train_gen_acc.reset_states()
@@ -334,31 +325,36 @@ class Pix2Pix:
                         tf.summary.scalar('accuracy real', self.val_real_acc.result(), step=epoch)
                         tf.summary.scalar('accuracy generated', self.val_gen_acc.result(), step=epoch)
 
-                    self.predict(test_ds, self.val_summary_writer, epoch)
+                    self._train_predict(test_ds, self.val_summary_writer, 'validation', epoch)
 
                     self.val_loss.reset_states()
                     self.val_gen_acc.reset_states()
                     self.val_real_acc.reset_states()
 
+    def predict(self, dataset, log_path, samples):
+        writer = self._set_logdir(log_path, 'predict')
+        step = 0
+        if samples == 'all':
+            target = dataset
+        else:
+            target = dataset.take(samples)
 
+        for x, y in target.take(samples):
+            prediction = self.generator(x, training=False)
 
+            stack = tf.stack([x, prediction, y], axis=0) * 0.5 + 0.5
+            stack = tf.squeeze(stack)
 
-    def predict(self, dataset, writer, step, samples=1):
-        for x, _ in dataset.take(samples):
-            prediction = self.generator(x, training=False) * 0.5 + 0.5
-            # prediction = tf.squeeze(prediction)
             with writer.as_default():
-                tf.summary.image('predictions', prediction, step=step)
+                tf.summary.image('predictions', stack, step=step)
 
-    def get_tb_stack(self, dataset):
+    def _train_predict(self, dataset, writer, name, step):
         for x, y in dataset.take(1):
-            # x is the input
-            # y is the ground truth
             generated = self.generator(x, training=False)
             stack = tf.stack([x, generated, y], axis=0) * 0.5 + 0.5
             stack = tf.squeeze(stack)
-
-            return stack
+            with writer.as_default():
+                tf.summary.image(name, stack, step=step, max_outputs=3)
 
 
 class CustomPix2Pix(Pix2Pix):
