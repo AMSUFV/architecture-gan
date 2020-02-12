@@ -1,5 +1,4 @@
 import tensorflow as tf
-import matplotlib.pyplot as plt
 
 IMG_HEIGHT = 256
 IMG_WIDTH = 512
@@ -42,11 +41,6 @@ def random_crop(input_image, real_image):
 
 @tf.function()
 def random_jitter(input_image, real_image):
-    # En el codigo original hacen un resize al 111% del tamaño, 256 a 286, se hace lo propio
-    # con las dimensiones de nuestra imagen
-    # resized_width = IMG_WIDTH + IMG_WIDTH // RESIZE_FACTOR
-    # resized_height = IMG_HEIGHT + IMG_HEIGHT // RESIZE_FACTOR
-
     resized_width = round(IMG_WIDTH * RESIZE_FACTOR)
     resized_height = round(IMG_HEIGHT * RESIZE_FACTOR)
 
@@ -102,17 +96,3 @@ def load_single_image(path):
     image = tf.expand_dims(image, 0)
 
     return image
-
-
-def show_image(image, size=(10, 10)):
-    plt.figure(figsize=size)
-    plt.imshow(image[0] * 0.5 + 0.5)
-    plt.axis('off')
-    plt.show()
-
-
-def predict_single_image(model, path, save_path, size=(10, 10), show=False):
-    image = load_single_image(path)
-    prediction = model(image, training=False)
-    if show:
-        show_image(prediction, size)

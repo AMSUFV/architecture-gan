@@ -7,9 +7,14 @@ from utils import custom_preprocessing as cp
 
 
 class HybridReconstuctor(Pix2Pix):
-    def get_dataset(self, temples, split=0.2, dataset_path=None, ruins_per_temple=2):
+    def get_dataset(self, temples, dataset_path=None, split=0.2, ruins_per_temple=2, input_shape=None):
+        if input_shape is not None:
+            cp.IMG_WIDTH, cp.IMG_HEIGHT = input_shape
+
         if dataset_path is None:
             dataset_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\\'
+
+        buffer_size = len(temples) * ruins_per_temple * 300
 
         datasets = []
         for i, temple in enumerate(temples):
@@ -24,13 +29,18 @@ class HybridReconstuctor(Pix2Pix):
         datasets.pop(0)
         for dataset in datasets:
             train_dataset = train_dataset.concatenate(dataset)
-        buffer_size = len(temples) * ruins_per_temple * 300
+
         train_dataset = train_dataset.shuffle(buffer_size)
 
-        return train_dataset
+        # train/val split
+        train_size = buffer_size - round(buffer_size * split)
+        train = train_dataset.take(train_size).shuffle(train_size)
+        validation = train_dataset.skip(train_size).shuffle(buffer_size - train_size)
+
+        return train, validation
 
     @staticmethod
-    def get_single_dataset(ruins_path, temple_path, colors_path, split=0.2, mode='train'):
+    def get_single_dataset(ruins_path, temple_path, colors_path, mode='train'):
         if mode == 'train':
             preprocessing_function = cp.load_images_train
         else:
@@ -39,9 +49,6 @@ class HybridReconstuctor(Pix2Pix):
         ruins_path_list = glob.glob(ruins_path + r'\*.png')
         colors_path_list = glob.glob(colors_path + r'\*.png')
         temple_path_list = glob.glob(temple_path + r'\*.png')
-
-        batch_size = 1
-        # buffer_size = len(ruins_path_list)
 
         repetition = len(ruins_path_list) // len(temple_path_list)
 
@@ -53,7 +60,7 @@ class HybridReconstuctor(Pix2Pix):
         temple_dataset = temple_dataset.repeat(repetition)
 
         train_dataset = tf.data.Dataset.zip((ruins_dataset, temple_dataset, colors_dataset))
-        train_dataset = train_dataset.map(preprocessing_function).batch(batch_size)
+        train_dataset = train_dataset.map(preprocessing_function).batch(1)
 
         return train_dataset
 
@@ -130,6 +137,9 @@ class HybridReconstuctor(Pix2Pix):
             for ruin, temple, color in train_ds:
                 self.train_step(ruin, temple, color)
 
+            for ruin, temple, color in test_ds:
+                self.validate(ruin, temple, color)
+
             self._train_predict(train_ds, self.train_summary_writer, 'train', epoch)
 
     # prediction methods
@@ -151,6 +161,15 @@ class HybridReconstuctor(Pix2Pix):
                 tf.summary.image('predictions', stack, step=step, max_outputs=3)
 
             step += 1
+
+    def validate(self, test_ruin, test_temple, test_color):
+        gen_output = self.generator([test_ruin, test_color], training=False)
+
+        disc_real_output = self.discriminator([test_ruin, test_temple], training=False)
+        disc_generated_output = self.discriminator([test_ruin, gen_output], training=False)
+
+        gen_loss = self.generator_loss(disc_generated_output, gen_output, test_temple)
+        disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
 
     def _train_predict(self, dataset, writer, name, step):
         for x, y, z in dataset.take(1):

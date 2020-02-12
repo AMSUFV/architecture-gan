@@ -3,7 +3,6 @@ import tensorflow as tf
 IMG_WIDTH = 512
 IMG_HEIGHT = 384
 RESIZE_FACTOR = 1.1
-# Position of images subject to jitter
 
 
 def load_images_train(*paths):
@@ -31,7 +30,7 @@ def load(paths):
     return images
 
 
-@tf.function
+# @tf.function
 def random_jitter(images):
     new_width = round(IMG_WIDTH * RESIZE_FACTOR)
     new_height = round(IMG_HEIGHT * RESIZE_FACTOR)
@@ -49,12 +48,12 @@ def random_jitter(images):
         images[0] = tf.image.random_saturation(images[0], 0.8, 1.2)
         images[1] = tf.image.random_saturation(images[1], 0.8, 1.2)
 
-    # if tf.random.uniform(()) > 0.5:
-    #     flipped_images = []
-    #     for image in images:
-    #         flipped_image = tf.image.flip_left_right(image)
-    #         flipped_images.append(flipped_image)
-    #     return flipped_images
+    if tf.random.uniform(()) > 0.5:
+        flipped_images = []
+        for image in images:
+            flipped_image = tf.image.flip_left_right(image)
+            flipped_images.append(flipped_image)
+        return flipped_images
     return images
 
 
