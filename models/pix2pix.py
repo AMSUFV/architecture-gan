@@ -80,7 +80,7 @@ class Pix2Pix:
 
         self.LAMBDA = 100
 
-        # TODO: Single responsibility; sacar las métricas
+        # TODO: Think of a better way to handle this to keep single responsibility; e.g. create a diferent class.
         # Tensorboard
         self.log_dir = log_dir
         if self.log_dir is not None:
@@ -270,8 +270,6 @@ class Pix2Pix:
         input_path = glob.glob(input_path + r'\*.png')
         output_path = glob.glob(output_path + r'\*.png')
 
-        # x_train, x_test, y_train, y_test = train_test_split(input_path, output_path, test_size=split)
-
         input_dataset = tf.data.Dataset.list_files(input_path, shuffle=file_shuffle)
         output_dataset = tf.data.Dataset.list_files(output_path, shuffle=file_shuffle)
         combined_dataset = tf.data.Dataset.zip((input_dataset, output_dataset)).shuffle(buffer_size)
@@ -287,20 +285,6 @@ class Pix2Pix:
         train_dataset = train_dataset.map(preprocessing.load_images_train).shuffle(train_size).batch(batch_size)
         validation_dataset = validation_dataset.map(preprocessing.load_images_test).shuffle(validation_size)\
             .batch(batch_size)
-
-        # train
-        # input_dataset = tf.data.Dataset.list_files(x_train, shuffle=file_shuffle)
-        # output_dataset = tf.data.Dataset.list_files(y_train, shuffle=file_shuffle)
-        #
-        # train_dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
-        # train_dataset = train_dataset.map(preprocessing.load_images_train).shuffle(buffer_size).batch(batch_size)
-        #
-        # # validation
-        # input_dataset = tf.data.Dataset.list_files(x_test, shuffle=file_shuffle)
-        # output_dataset = tf.data.Dataset.list_files(y_test, shuffle=file_shuffle)
-        #
-        # test_dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
-        # test_dataset = test_dataset.map(preprocessing.load_images_train).batch(batch_size)
 
         return train_dataset, validation_dataset
 
@@ -349,31 +333,6 @@ class Pix2Pix:
                     self._write_metrics(self.val_summary_writer, self.val_metrics, epoch)
                     self._reset_metrics(self.val_metrics)
                     self._train_predict(test_ds, self.val_summary_writer, epoch, 'validation')
-                #
-                # with self.train_summary_writer.as_default():
-                #     tf.summary.scalar('disc loss', self.train_disc_loss.result(), step=epoch)
-                #     tf.summary.scalar('gen loss', self.train_gen_loss.result(), step=epoch)
-                #     tf.summary.scalar('accuracy real', self.train_real_acc.result(), step=epoch)
-                #     tf.summary.scalar('accuracy generated', self.train_gen_acc.result(), step=epoch)
-                #
-                # self._train_predict(train_ds, self.train_summary_writer, epoch)
-                #
-                # self.train_disc_loss.reset_states()
-                # self.train_gen_acc.reset_states()
-                # self.train_real_acc.reset_states()
-                #
-                # if test_ds is not None:
-                #     with self.val_summary_writer.as_default():
-                #         tf.summary.scalar('disc loss', self.val_disc_loss.result(), step=epoch)
-                #         tf.summary.scalar('gen loss', self.val_gen_loss.result(), step=epoch)
-                #         tf.summary.scalar('accuracy real', self.val_real_acc.result(), step=epoch)
-                #         tf.summary.scalar('accuracy generated', self.val_gen_acc.result(), step=epoch)
-                #
-                #     self._train_predict(test_ds, self.val_summary_writer, sepoch)
-                #
-                #     self.val_disc_loss.reset_states()
-                #     self.val_gen_acc.reset_states()
-                #     self.val_real_acc.reset_states()
 
     def validate(self, test_in, test_out):
         gen_output = self.generator(test_in, training=False)
