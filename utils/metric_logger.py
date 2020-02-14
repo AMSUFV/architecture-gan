@@ -9,6 +9,7 @@ class MetricLogger:
     Para emplear esta clase, crear un nuevo MetricLogger en el init, elegir  y las métricas que se quieren emplear a
     través de add_metric
     """
+
     def __init__(self, log_dir, default_metrics=False, datasets=None):
         """
         Se inicializa indicándole en qué directorio se guardarán los logs. Por defecto se guardarán en el directorio
@@ -50,12 +51,13 @@ class MetricLogger:
         train_summary_writer = tf.summary.create_file_writer(train_log_dir)
         # val_summary_writer = tf.summary.create_file_writer(val_log_dir)
 
-        return train_summary_writer # val_summary_writer
+        return train_summary_writer  # val_summary_writer
 
     def function(self, func, dataset):
         def wrapper(*args, **kwargs):
             values = func(*args, **kwargs)
             self.metrics[dataset] = values
+
         return wrapper
 
     def add_metric(self, dataset: str, tag: str, value):

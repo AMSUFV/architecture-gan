@@ -157,16 +157,8 @@ class HybridReconstuctor(Pix2Pix):
             if test_ds is not None:
                 for ruin, temple, color in test_ds:
                     self.validate(ruin, temple, color)
-            # Tensorboard
-            if self.log_dir is not None:
-                self._write_metrics(self.train_summary_writer, self.train_metrics, epoch)
-                self._reset_metrics(self.train_metrics)
-                self._train_predict(train_ds, self.train_summary_writer, epoch, 'train')
 
-                if test_ds is not None:
-                    self._write_metrics(self.val_summary_writer, self.val_metrics, epoch)
-                    self._reset_metrics(self.val_metrics)
-                    self._train_predict(test_ds, self.val_summary_writer, epoch, 'validation')
+            self._metric_update(train_ds, test_ds, epoch)
 
     # prediction methods
     def predict(self, dataset, log_path, samples):
@@ -184,8 +176,13 @@ class HybridReconstuctor(Pix2Pix):
             stack = tf.stack([x, prediction, y], axis=0) * 0.5 + 0.5
             stack = tf.squeeze(stack)
 
+            second_prediction = self.generator([prediction, z], training=False)
+            second_stack = tf.stack([x, second_prediction, y], axis=0) * 0.5 + 0.5
+            second_stack = tf.squeeze(second_stack)
+
             with writer.as_default():
                 tf.summary.image('predictions', stack, step=step, max_outputs=3)
+                tf.summary.image('second predictions', second_stack, step=step, max_outputs=3)
 
             step += 1
 
@@ -242,5 +239,5 @@ def predict_batch(target='temple_0', ruins=1):
 
 
 if __name__ == '__main__':
-    predict_batch(target='temple_0', ruins=0)
-    predict_batch(target='temple_0', ruins=1)
+    disc = HybridReconstuctor.build_discriminator(input_shape=[256, 512, 3])
+    tf.keras.utils.plot_model(disc, to_file='../discriminator.png', show_shapes=True)

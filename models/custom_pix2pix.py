@@ -144,4 +144,3 @@ class CustomPix2Pix(Pix2Pix):
         full_dataset = full_dataset.map(preprocessing_function).batch(1)
 
         return full_dataset
-

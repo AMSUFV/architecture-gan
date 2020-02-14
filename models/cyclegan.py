@@ -102,8 +102,10 @@ class CycleGAN(CustomPix2Pix):
 
         self.segmenter_optimizer.apply_gradients(zip(segmenter_gradients, self.segmenter.trainable_variables))
         self.desegmenter_optimizer.apply_gradients(zip(desegmenter_gradients, self.desegmenter.trainable_variables))
-        self.segmenter_disc_optimizer.apply_gradients(zip(segmenter_disc_gradients, self.segmenter_disc.trainable_variables))
-        self.desegmenter_disc_optimizer.apply_gradients(zip(desegmenter_disc_gradients, self.desegmenter_disc.trainable_variables))
+        self.segmenter_disc_optimizer.apply_gradients(
+            zip(segmenter_disc_gradients, self.segmenter_disc.trainable_variables))
+        self.desegmenter_disc_optimizer.apply_gradients(
+            zip(desegmenter_disc_gradients, self.desegmenter_disc.trainable_variables))
 
     def fit(self, train_ds, test_ds, epochs, save_path=None):
         for epoch in range(epochs):

@@ -60,6 +60,7 @@ def upsample(filters: int, size: int, apply_dropout=False):
 class Pix2Pix:
     """Pix2Pix tailored to the needs of the ARQGAN project.
     """
+
     def __init__(self, *, gen_path: str = None, disc_path: str = None, log_dir: str = None, autobuild=False):
         """Initialization of the Pix2Pix object. If paths for the generator and the discriminator are not specified,
         new ones will be created. Keeping logs of the training is recomended but optional.
@@ -214,7 +215,7 @@ class Pix2Pix:
         initializer = tf.random_normal_initializer(0., 0.02)
         inp = tf.keras.layers.Input(shape=input_shape, name='input_image')
 
-        if target is not None:
+        if target is None:
             x = inp
         else:
             target = tf.keras.layers.Input(shape=input_shape, name='target_image')
@@ -247,12 +248,12 @@ class Pix2Pix:
 
         return total_disc_loss * 0.5
 
-    def generator_loss(self, disc_generated_output, gen_output, target):
+    def generator_loss(self, disc_generated_output, gen_output, target, lmda=100):
         g_loss = self.loss_object(tf.ones_like(disc_generated_output), disc_generated_output)
 
         l1_loss = tf.reduce_mean(tf.abs(target - gen_output))
 
-        total_gen_loss = g_loss + (self.LAMBDA * l1_loss)
+        total_gen_loss = g_loss + (lmda * l1_loss)
 
         return total_gen_loss
 
@@ -282,7 +283,7 @@ class Pix2Pix:
         validation_dataset = combined_dataset.skip(train_size)
 
         train_dataset = train_dataset.map(preprocessing.load_images_train).shuffle(train_size).batch(batch_size)
-        validation_dataset = validation_dataset.map(preprocessing.load_images_test).shuffle(validation_size)\
+        validation_dataset = validation_dataset.map(preprocessing.load_images_test).shuffle(validation_size) \
             .batch(batch_size)
 
         return train_dataset, validation_dataset
@@ -322,16 +323,18 @@ class Pix2Pix:
                 for input_image, target_image in test_ds:
                     self.validate(input_image, target_image)
 
-            # Tensorboard
-            if self.log_dir is not None:
-                self._write_metrics(self.train_summary_writer, self.train_metrics, epoch)
-                self._reset_metrics(self.train_metrics)
-                self._train_predict(train_ds, self.train_summary_writer, epoch, 'train')
+            self._metric_update(train_ds, test_ds, epoch)
 
-                if test_ds is not None:
-                    self._write_metrics(self.val_summary_writer, self.val_metrics, epoch)
-                    self._reset_metrics(self.val_metrics)
-                    self._train_predict(test_ds, self.val_summary_writer, epoch, 'validation')
+    def _metric_update(self, train_ds, test_ds, epoch):
+        if self.log_dir is not None:
+            self._write_metrics(self.train_summary_writer, self.train_metrics, epoch)
+            self._reset_metrics(self.train_metrics)
+            self._train_predict(train_ds, self.train_summary_writer, epoch, 'train')
+
+            if test_ds is not None:
+                self._write_metrics(self.val_summary_writer, self.val_metrics, epoch)
+                self._reset_metrics(self.val_metrics)
+                self._train_predict(test_ds, self.val_summary_writer, epoch, 'validation')
 
     def validate(self, test_in, test_out):
         gen_output = self.generator(test_in, training=False)
@@ -406,15 +409,3 @@ class Pix2Pix:
         """
         for metric in metrics:
             metric.reset_states()
-
-
-if __name__ == '__main__':
-    # in_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples_ruins\temple_0_ruins_0'
-    # out_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples\temple_0'
-    # mypix2pix = Pix2Pix(log_dir=r'..\logs\test')
-    # # TODO: Maybe not initialize gen and disc in __init__
-    # mypix2pix.generator = mypix2pix.build_generator(input_shape=[1024, 768, 3])
-    # train, val = mypix2pix.get_dataset(in_path, out_path, input_shape=[1024, 768])
-    # mypix2pix.fit(train, val, epochs=50)
-    gen = Pix2Pix.build_generator()
-    gen.summary()

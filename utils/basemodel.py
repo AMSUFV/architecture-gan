@@ -5,6 +5,7 @@ class BaseModel:
     generación del dataset, entrenamiento, validación, predicción, etc.), obteniendo así coherencia y similitud
     de uso entre los mismos.
     """
+
     def set_weights(self, **kwargs):
         """Método para establecer los pesos de las redes empleadas
 
