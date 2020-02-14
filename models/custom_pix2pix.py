@@ -94,9 +94,9 @@ class CustomPix2Pix(Pix2Pix):
     #
     #     return train_dataset, test_dataset
 
-    def get_dataset(self, temples, dataset_path=None, split=0.2, ruins_per_temple=2, input_shape=None):
-        if input_shape is not None:
-            cp.IMG_WIDTH, cp.IMG_HEIGHT = input_shape
+    def get_dataset(self, temples, dataset_path=None, split=0.2, ruins_per_temple=2, image_shape=None):
+        if image_shape is not None:
+            cp.IMG_WIDTH, cp.IMG_HEIGHT = image_shape
 
         if dataset_path is None:
             dataset_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\\'

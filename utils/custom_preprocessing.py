@@ -2,6 +2,10 @@ import tensorflow as tf
 
 IMG_WIDTH = 512
 IMG_HEIGHT = 384
+
+TGT_WIDTH = 512
+TGT_HEIGHT = 256
+
 RESIZE_FACTOR = 1.1
 
 
@@ -15,6 +19,7 @@ def load_images_train(*paths):
 def load_images_test(*paths):
     images = load(paths)
     images = resize(IMG_WIDTH, IMG_HEIGHT, images)
+    images = random_crop(images)
     images = normalize(images)
     return images
 
@@ -68,7 +73,7 @@ def resize(width, height, images):
 
 def random_crop(images):
     stack = tf.stack(images)
-    crop = tf.image.random_crop(stack, size=[len(images), IMG_HEIGHT, IMG_WIDTH, 3])
+    crop = tf.image.random_crop(stack, size=[len(images), TGT_HEIGHT, TGT_WIDTH, 3])
     crop = tf.unstack(crop, num=len(images))
     return crop
 

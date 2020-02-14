@@ -60,18 +60,22 @@ def upsample(filters: int, size: int, apply_dropout=False):
 class Pix2Pix:
     """Pix2Pix tailored to the needs of the ARQGAN project.
     """
-    def __init__(self, *, gen_path: str = None, disc_path: str = None, log_dir: str = None):
+    def __init__(self, *, gen_path: str = None, disc_path: str = None, log_dir: str = None, autobuild=False):
         """Initialization of the Pix2Pix object. If paths for the generator and the discriminator are not specified,
         new ones will be created. Keeping logs of the training is recomended but optional.
 
-        :param gen_path: str. Path to the generator (.h5) model. If not provided, a new one will be created.
-        :param disc_path: str. Path to the discriminator (.h5) model. If not provided, a new one will be created.
+        :param gen_path: str. Path to the generator (.h5) model. If not provided, a new one will be created when fit is
+        called.
+        :param disc_path: str. Path to the discriminator (.h5) model. If not provided, a new one will be created when
+        fit is called.
         :param log_dir: str. Path to the log folder, optional. If specified, Tensorboard logs will be created in the
         target folder.
         """
+        self.generator = None
+        self.discriminator = None
 
-        self.generator = self._set_weights(gen_path, self.build_generator)
-        self.discriminator = self._set_weights(disc_path, self.build_discriminator)
+        self.generator = self._set_weights(gen_path, self.build_generator, autobuild)
+        self.discriminator = self._set_weights(disc_path, self.build_discriminator, autobuild)
 
         self.generator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
         self.discriminator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
@@ -126,21 +130,21 @@ class Pix2Pix:
         return writer
 
     @staticmethod
-    def _set_weights(path: str = None, func=None):
+    def _set_weights(path: str = None, func=None, autobuild=False):
         """Model creation method, not ment to be used outside of __init__. Returns a model either from a path or from
         a model creation function. If a path is not specified, said function must be.
 
         :param path: str. Path to the (.h5) model.
         :param func: function. Model creation function.
+        :param autobuild: boolean. Wether or not to build the predefined model
         :return: Tensorflow Keras Model
         """
         if path is not None:
             return tf.keras.models.load_model(path)
+        elif autobuild:
+            return func()
         else:
-            if func is None:
-                raise Exception('If no model path is specified, a model creation function must be provided.')
-            else:
-                return func()
+            return None
 
     @staticmethod
     def build_generator(input_shape: list = None):
@@ -149,6 +153,12 @@ class Pix2Pix:
         :param input_shape: list.
         :return: Tensorflow Keras Model
         """
+        if input_shape is None:
+            input_shape = [512, 256, 3]
+
+        inputs = tf.keras.layers.Input(shape=input_shape)
+        x = inputs
+
         down_stack = [
             downsample(64, 4, apply_batchnorm=False),
             downsample(128, 4),
@@ -169,25 +179,17 @@ class Pix2Pix:
             upsample(64, 4)
         ]
 
-        if input_shape is None:
-            input_shape = [512, 256, 3]
-
-        inputs = tf.keras.layers.Input(shape=input_shape)
-        x = inputs
-
         # downsampling
         skips = []
         for down in down_stack:
             x = down(x)
             skips.append(x)
 
-        concat = tf.keras.layers.Concatenate()
-
         skips = reversed(skips[:-1])
         # upsampling and connecting
         for up, skip in zip(up_stack, skips):
             x = up(x)
-            x = concat([x, skip])
+            x = tf.keras.layers.Concatenate()([x, skip])
 
         initializer = tf.random_normal_initializer(0., 0.02)
         last = tf.keras.layers.Conv2DTranspose(3, 4, strides=2, padding='same',
@@ -197,26 +199,26 @@ class Pix2Pix:
         return tf.keras.Model(inputs=inputs, outputs=x)
 
     @staticmethod
-    def build_discriminator(target=False, initial_units=64, layers=4, output_layer=None):
+    def build_discriminator(target=None, initial_units=64, layers=4, input_shape=None):
         """Patch-like discriminator creation function.
 
         :param target:
         :param initial_units:
         :param layers:
-        :param output_layer:
+        :param input_shape:
         :return:
         """
-        return_target = False
+        if input_shape is None:
+            input_shape = [None, None, 3]
+
         initializer = tf.random_normal_initializer(0., 0.02)
+        inp = tf.keras.layers.Input(shape=input_shape, name='input_image')
 
-        inp = tf.keras.layers.Input(shape=[None, None, 3], name='input_image')
-
-        if not target:
+        if target is not None:
             x = inp
         else:
-            target = tf.keras.layers.Input(shape=[None, None, 3], name='target_image')
+            target = tf.keras.layers.Input(shape=input_shape, name='target_image')
             x = tf.keras.layers.concatenate([inp, target])
-            return_target = True
 
         multipliyer = 1
         for layer in range(layers):
@@ -228,12 +230,9 @@ class Pix2Pix:
                 if multipliyer < 8:
                     multipliyer *= 2
 
-        if not output_layer:
-            last = tf.keras.layers.Conv2D(1, 4, strides=1, kernel_initializer=initializer)(x)
-        else:
-            last = output_layer
+        last = tf.keras.layers.Conv2D(1, 4, strides=1, kernel_initializer=initializer)(x)
 
-        if return_target:
+        if target is not None:
             return tf.keras.Model(inputs=[inp, target], outputs=last)
         else:
             return tf.keras.Model(inputs=inp, outputs=last)
@@ -350,6 +349,13 @@ class Pix2Pix:
             self.val_real_acc(tf.ones_like(disc_real_output), disc_real_output)
 
     def predict(self, dataset, log_path, samples):
+        """Prediction method ment to be used outside of training.
+
+        :param dataset:
+        :param log_path:
+        :param samples:
+        :return:
+        """
         writer = self._get_summary_writer(log_path, 'predict')
         if samples == 'all':
             target = dataset
@@ -365,7 +371,14 @@ class Pix2Pix:
             with writer.as_default():
                 tf.summary.image('predictions', stack)
 
-    def _train_predict(self, dataset, writer, step, name='train'):
+    def _train_predict(self, dataset, writer, step: int, name='train'):
+        """Method used during training to record the model's progress on image generation / translation tasks.
+
+        :param dataset: tensorflow.Dataset. Dataset to take the samples from
+        :param writer: tf.summary.writer. Writer to use when recording the progress.
+        :param step: int. Used as step value when writing the metric.
+        :param name: str. Name to be showed on Tensorboard.
+        """
         for x, y in dataset.take(1):
             generated = self.generator(x, training=False)
             stack = tf.stack([x, generated, y], axis=0) * 0.5 + 0.5
@@ -374,22 +387,34 @@ class Pix2Pix:
                 tf.summary.image(name, stack, step=step, max_outputs=3)
 
     @staticmethod
-    def _write_metrics(writer, metrics, epoch):
+    def _write_metrics(writer, metrics: list, step: int):
+        """Convenience method for writing scalar metrics to Tensorboard
+
+        :param writer: tf.summary.writer. Writer to use when updating the metrics.
+        :param metrics: list. List tf.summary.scalar metrics to record.
+        :param step: int. Used as step value when writing the metric.
+        """
         with writer.as_default():
             for metric in metrics:
-                tf.summary.scalar(metric.name, metric.result(), step=epoch)
+                tf.summary.scalar(metric.name, metric.result(), step=step)
 
     @staticmethod
-    def _reset_metrics(metrics):
+    def _reset_metrics(metrics: list):
+        """Convenience method for reseting Tensorboard metrics
+
+        :param metrics: list. List of metrics to reset.
+        """
         for metric in metrics:
             metric.reset_states()
 
 
 if __name__ == '__main__':
-    in_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples_ruins\temple_0_ruins_0'
-    out_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples\temple_0'
-    mypix2pix = Pix2Pix(log_dir=r'..\logs\test')
-    # TODO: Maybe not initialize gen and disc in __init__
-    mypix2pix.generator = mypix2pix.build_generator(input_shape=[1024, 768, 3])
-    train, val = mypix2pix.get_dataset(in_path, out_path, input_shape=[1024, 768])
-    mypix2pix.fit(train, val, epochs=50)
+    # in_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples_ruins\temple_0_ruins_0'
+    # out_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\temples\temple_0'
+    # mypix2pix = Pix2Pix(log_dir=r'..\logs\test')
+    # # TODO: Maybe not initialize gen and disc in __init__
+    # mypix2pix.generator = mypix2pix.build_generator(input_shape=[1024, 768, 3])
+    # train, val = mypix2pix.get_dataset(in_path, out_path, input_shape=[1024, 768])
+    # mypix2pix.fit(train, val, epochs=50)
+    gen = Pix2Pix.build_generator()
+    gen.summary()
