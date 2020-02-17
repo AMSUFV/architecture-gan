@@ -99,7 +99,7 @@ class CustomPix2Pix(Pix2Pix):
             cp.IMG_WIDTH, cp.IMG_HEIGHT = image_shape
 
         if dataset_path is None:
-            dataset_path = r'C:\Users\Ceiec06\Documents\GitHub\ARQGAN\dataset\\'
+            dataset_path = r'..\dataset\\'
 
         buffer_size = len(temples) * ruins_per_temple * 300
 
@@ -118,18 +118,18 @@ class CustomPix2Pix(Pix2Pix):
 
         # train/val split
         train_size = buffer_size - round(buffer_size * split)
-        train = train_dataset.take(train_size).shuffle(train_size)
-        validation = train_dataset.skip(train_size).shuffle(buffer_size - train_size)
+        val_size = buffer_size - train_size
+
+        train = train_dataset.take(train_size).map(cp.load_images_train)
+        train = train.shuffle(train_size, reshuffle_each_iteration=False).batch(1)
+
+        validation = train_dataset.skip(train_size).map(cp.load_images_test)
+        validation = validation.shuffle(val_size, reshuffle_each_iteration=False).batch(1)
 
         return train, validation
 
     @staticmethod
-    def get_single_dataset(ruins_path, temple_path, mode='train'):
-        if mode == 'train':
-            preprocessing_function = cp.load_images_train
-        else:
-            preprocessing_function = cp.load_images_test
-
+    def get_single_dataset(ruins_path, temple_path):
         ruins_path_list = glob.glob(ruins_path + r'\*.png')
         temple_path_list = glob.glob(temple_path + r'\*.png')
 
@@ -141,6 +141,19 @@ class CustomPix2Pix(Pix2Pix):
         temple_dataset = temple_dataset.repeat(repetition)
 
         full_dataset = tf.data.Dataset.zip((ruins_dataset, temple_dataset))
-        full_dataset = full_dataset.map(preprocessing_function).batch(1)
 
         return full_dataset
+
+
+if __name__ == '__main__':
+
+    log_path = r'..\logs\full_temple_train'
+    ds_path = r'..\dataset'
+    temple_list = ['temple_1', 'temple_2', 'temple_3', 'temple_4', 'temple_5', 'temple_6',
+                   'temple_7', 'temple_8', 'temple_9']
+    cp.RESIZE_FACTOR = 1.3
+
+    pix2pix = CustomPix2Pix(log_dir=r'..\logs\full_temple_train_pix2pix', autobuild=True)
+    train, validation = pix2pix.get_dataset(temples=temple_list, dataset_path=ds_path, split=0.25)
+    pix2pix.fit(train, validation, 50)
+    tf.keras.models.save_model(pix2pix.generator, '../trained_models/reconstructor_simple.h5')

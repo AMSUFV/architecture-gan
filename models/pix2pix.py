@@ -147,18 +147,9 @@ class Pix2Pix:
         else:
             return None
 
-    @staticmethod
-    def build_generator(input_shape: list = None):
-        """Generator creation function. Creates a u-net pix2pix-like generator.
-
-        :param input_shape: list.
-        :return: Tensorflow Keras Model
-        """
+    def build_generator(self, input_shape: list = None, heads=1, inplace=False):
         if input_shape is None:
-            input_shape = [512, 256, 3]
-
-        inputs = tf.keras.layers.Input(shape=input_shape)
-        x = inputs
+            input_shape = [None, None, 3]
 
         down_stack = [
             downsample(64, 4, apply_batchnorm=False),
@@ -170,6 +161,7 @@ class Pix2Pix:
             downsample(512, 4),
             downsample(512, 4)
         ]
+
         up_stack = [
             upsample(512, 4, apply_dropout=True),
             upsample(512, 4, apply_dropout=True),
@@ -177,8 +169,17 @@ class Pix2Pix:
             upsample(512, 4),
             upsample(256, 4),
             upsample(128, 4),
-            upsample(64, 4)
+            upsample(64, 4),
         ]
+
+        input_layers = []
+        for n in range(heads):
+            input_layers.append(tf.keras.layers.Input(shape=input_shape))
+
+        if heads > 1:
+            x = tf.keras.layers.concatenate(input_layers)
+        else:
+            x = input_layers[0]
 
         # downsampling
         skips = []
@@ -187,6 +188,7 @@ class Pix2Pix:
             skips.append(x)
 
         skips = reversed(skips[:-1])
+
         # upsampling and connecting
         for up, skip in zip(up_stack, skips):
             x = up(x)
@@ -197,10 +199,12 @@ class Pix2Pix:
                                                kernel_initializer=initializer, activation='tanh')
         x = last(x)
 
-        return tf.keras.Model(inputs=inputs, outputs=x)
+        if inplace:
+            self.generator = tf.keras.Model
+        return tf.keras.Model(inputs=input_layers, outputs=x)
 
     @staticmethod
-    def build_discriminator(target=None, initial_units=64, layers=4, input_shape=None):
+    def build_discriminator(target=True, initial_units=64, layers=4, input_shape=None):
         """Patch-like discriminator creation function.
 
         :param target:
@@ -212,14 +216,16 @@ class Pix2Pix:
         if input_shape is None:
             input_shape = [None, None, 3]
 
+        target_image = None
+
         initializer = tf.random_normal_initializer(0., 0.02)
         inp = tf.keras.layers.Input(shape=input_shape, name='input_image')
 
-        if target is None:
+        if not target:
             x = inp
         else:
-            target = tf.keras.layers.Input(shape=input_shape, name='target_image')
-            x = tf.keras.layers.concatenate([inp, target])
+            target_image = tf.keras.layers.Input(shape=input_shape, name='target_image')
+            x = tf.keras.layers.concatenate([inp, target_image])
 
         multipliyer = 1
         for layer in range(layers):
@@ -233,8 +239,8 @@ class Pix2Pix:
 
         last = tf.keras.layers.Conv2D(1, 4, strides=1, kernel_initializer=initializer)(x)
 
-        if target is not None:
-            return tf.keras.Model(inputs=[inp, target], outputs=last)
+        if target:
+            return tf.keras.Model(inputs=[inp, target_image], outputs=last)
         else:
             return tf.keras.Model(inputs=inp, outputs=last)
 
@@ -321,35 +327,38 @@ class Pix2Pix:
             # Validation
             if test_ds is not None:
                 for input_image, target_image in test_ds:
-                    self.validate(input_image, target_image)
+                    self.validate(test_ds )
 
             self._metric_update(train_ds, test_ds, epoch)
+
+            if epoch % 10 == 0:
+                self._train_predict(train_ds, self.train_summary_writer, epoch, 'train')
+                self._train_predict(test_ds, self.val_summary_writer, epoch, 'validation')
 
     def _metric_update(self, train_ds, test_ds, epoch):
         if self.log_dir is not None:
             self._write_metrics(self.train_summary_writer, self.train_metrics, epoch)
             self._reset_metrics(self.train_metrics)
-            self._train_predict(train_ds, self.train_summary_writer, epoch, 'train')
 
             if test_ds is not None:
                 self._write_metrics(self.val_summary_writer, self.val_metrics, epoch)
                 self._reset_metrics(self.val_metrics)
-                self._train_predict(test_ds, self.val_summary_writer, epoch, 'validation')
 
-    def validate(self, test_in, test_out):
-        gen_output = self.generator(test_in, training=False)
+    def validate(self, test):
+        for test_in, test_out in test.take(1):
+            gen_output = self.generator(test_in, training=False)
 
-        disc_real_output = self.discriminator([test_in, test_out], training=False)
-        disc_generated_output = self.discriminator([test_in, gen_output], training=False)
+            disc_real_output = self.discriminator([test_in, test_out], training=False)
+            disc_generated_output = self.discriminator([test_in, gen_output], training=False)
 
-        gen_loss = self.generator_loss(disc_generated_output, gen_output, test_out)
-        disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
+            gen_loss = self.generator_loss(disc_generated_output, gen_output, test_out)
+            disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
 
-        if self.log_dir is not None:
-            self.val_disc_loss(disc_loss)
-            self.val_gen_loss(gen_loss)
-            self.val_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
-            self.val_real_acc(tf.ones_like(disc_real_output), disc_real_output)
+            if self.log_dir is not None:
+                self.val_disc_loss(disc_loss)
+                self.val_gen_loss(gen_loss)
+                self.val_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
+                self.val_real_acc(tf.ones_like(disc_real_output), disc_real_output)
 
     def predict(self, dataset, log_path, samples):
         """Prediction method ment to be used outside of training.
@@ -409,3 +418,8 @@ class Pix2Pix:
         """
         for metric in metrics:
             metric.reset_states()
+
+
+if __name__ == '__main__':
+    pix2pix = Pix2Pix(log_dir=r'..\logs\full_temple_train_pix2pix', autobuild=True)
+

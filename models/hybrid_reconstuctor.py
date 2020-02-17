@@ -65,66 +65,6 @@ class HybridReconstuctor(Pix2Pix):
 
         return dataset
 
-    @staticmethod
-    def build_generator(input_shape: list = None, heads=2):
-        if input_shape is None:
-            input_shape = [None, None, 3]
-
-        down_stack = [
-            downsample(64, 4, apply_batchnorm=False),
-            downsample(128, 4),
-            downsample(256, 4),
-            downsample(512, 4),
-            downsample(512, 4),
-            downsample(512, 4),
-            downsample(512, 4),
-            downsample(512, 4)
-        ]
-
-        up_stack = [
-            upsample(512, 4, apply_dropout=True),
-            upsample(512, 4, apply_dropout=True),
-            upsample(512, 4, apply_dropout=True),
-            upsample(512, 4),
-            upsample(256, 4),
-            upsample(128, 4),
-            upsample(64, 4),
-        ]
-
-        input_layers = []
-        for n in range(heads):
-            input_layers.append(tf.keras.layers.Input(shape=input_shape))
-
-        if heads > 1:
-            x = tf.keras.layers.concatenate(input_layers)
-        else:
-            x = input_layers[0]
-
-        # ruin_image = tf.keras.layers.Input(shape=[None, None, 3], name='ruin_image')
-        # color_image = tf.keras.layers.Input(shape=[None, None, 3], name='color_image')
-        # x = tf.keras.layers.concatenate([ruin_image, color_image])
-
-        # downsampling
-        skips = []
-        for down in down_stack:
-            x = down(x)
-            skips.append(x)
-
-        skips = reversed(skips[:-1])
-
-        # upsampling and connecting
-        for up, skip in zip(up_stack, skips):
-            x = up(x)
-            x = tf.keras.layers.Concatenate()([x, skip])
-
-        initializer = tf.random_normal_initializer(0., 0.02)
-        last = tf.keras.layers.Conv2DTranspose(3, 4, strides=2, padding='same',
-                                               kernel_initializer=initializer, activation='tanh')
-        x = last(x)
-
-        # return tf.keras.Model(inputs=[ruin_image, color_image], outputs=x)
-        return tf.keras.Model(inputs=input_layers, outputs=x)
-
     @tf.function
     def train_step(self, ruin, temple, color):
         with tf.GradientTape(persistent=True) as tape:
@@ -155,8 +95,7 @@ class HybridReconstuctor(Pix2Pix):
                 self.train_step(ruin, temple, color)
 
             if test_ds is not None:
-                for ruin, temple, color in test_ds:
-                    self.validate(ruin, temple, color)
+                self.validate(test_ds)
 
             self._metric_update(train_ds, test_ds, epoch)
 
@@ -186,20 +125,21 @@ class HybridReconstuctor(Pix2Pix):
 
             step += 1
 
-    def validate(self, test_ruin, test_temple, test_color):
-        gen_output = self.generator([test_ruin, test_color], training=False)
+    def validate(self, test):
+        for test_ruin, test_temple, test_color in test.take(1):
+            gen_output = self.generator([test_ruin, test_color], training=False)
 
-        disc_real_output = self.discriminator([test_ruin, test_temple], training=False)
-        disc_generated_output = self.discriminator([test_ruin, gen_output], training=False)
+            disc_real_output = self.discriminator([test_ruin, test_temple], training=False)
+            disc_generated_output = self.discriminator([test_ruin, gen_output], training=False)
 
-        gen_loss = self.generator_loss(disc_generated_output, gen_output, test_temple)
-        disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
+            gen_loss = self.generator_loss(disc_generated_output, gen_output, test_temple)
+            disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
 
-        if self.log_dir is not None:
-            self.val_disc_loss(disc_loss)
-            self.val_gen_loss(gen_loss)
-            self.val_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
-            self.val_real_acc(tf.ones_like(disc_real_output), disc_real_output)
+            if self.log_dir is not None:
+                self.val_disc_loss(disc_loss)
+                self.val_gen_loss(gen_loss)
+                self.val_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
+                self.val_real_acc(tf.ones_like(disc_real_output), disc_real_output)
 
     def _train_predict(self, dataset, writer, step, name='train'):
         for ruin, temple, color in dataset.take(1):
@@ -239,5 +179,4 @@ def predict_batch(target='temple_0', ruins=1):
 
 
 if __name__ == '__main__':
-    disc = HybridReconstuctor.build_discriminator(input_shape=[256, 512, 3])
-    tf.keras.utils.plot_model(disc, to_file='../discriminator.png', show_shapes=True)
+    main()
