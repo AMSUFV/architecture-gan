@@ -1,5 +1,8 @@
 import glob
 import tensorflow as tf
+
+from random import shuffle
+
 from models.pix2pix import Pix2Pix
 from utils import custom_preprocessing as cp
 
@@ -154,6 +157,6 @@ if __name__ == '__main__':
     cp.RESIZE_FACTOR = 1.3
 
     pix2pix = CustomPix2Pix(log_dir=r'..\logs\full_temple_train_pix2pix', autobuild=True)
-    train, validation = pix2pix.get_dataset(temples=temple_list, dataset_path=ds_path, split=0.25)
-    pix2pix.fit(train, validation, 50)
+    train_ds, validation_ds = pix2pix.get_dataset(temples=temple_list, dataset_path=ds_path, split=0.25)
+    pix2pix.fit(train_ds, epochs=50)
     tf.keras.models.save_model(pix2pix.generator, '../trained_models/reconstructor_simple.h5')

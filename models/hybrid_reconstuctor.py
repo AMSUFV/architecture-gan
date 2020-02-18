@@ -1,13 +1,16 @@
 import datetime
 import glob
+import time
+
 import tensorflow as tf
-import numpy as np
 from models.pix2pix import Pix2Pix
-from models.pix2pix import downsample, upsample
 from utils import custom_preprocessing as cp
 
 
 class HybridReconstuctor(Pix2Pix):
+    def __call__(self, *args):
+        return self.generator([args[0], args[1]], training=False)
+
     def get_dataset(self, temples, dataset_path=None, split=0.2, ruins_per_temple=2, input_shape=None):
         if input_shape is not None:
             cp.IMG_WIDTH, cp.IMG_HEIGHT = input_shape
@@ -34,9 +37,9 @@ class HybridReconstuctor(Pix2Pix):
 
         # train/val split
         train_size = buffer_size - round(buffer_size * split)
-        train = train_dataset.take(train_size).shuffle(1000, reshuffle_each_iteration=False).batch(1)
-        validation = train_dataset.skip(train_size).shuffle(1000, reshuffle_each_iteration=False)\
-            .batch(1)
+        train = train_dataset.take(train_size).shuffle(train_size, reshuffle_each_iteration=False).batch(4)
+        validation = train_dataset.skip(train_size).shuffle(buffer_size - train_size, reshuffle_each_iteration=False)\
+            .batch(4)
 
         return train, validation
 
@@ -103,6 +106,7 @@ class HybridReconstuctor(Pix2Pix):
     def predict(self, dataset, log_path, samples):
         current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
         writer = self._get_summary_writer(log_path, current_time, 'predict')
+
         step = 0
         if samples == 'all':
             target = dataset
@@ -110,18 +114,13 @@ class HybridReconstuctor(Pix2Pix):
             target = dataset.take(samples)
 
         for x, y, z in target:
-            # x is the input
-            prediction = self.generator([x, z], training=False)
+            # x and z are the inputs
+            prediction = self.generator(x, training=False)
             stack = tf.stack([x, prediction, y], axis=0) * 0.5 + 0.5
             stack = tf.squeeze(stack)
 
-            second_prediction = self.generator([prediction, z], training=False)
-            second_stack = tf.stack([x, second_prediction, y], axis=0) * 0.5 + 0.5
-            second_stack = tf.squeeze(second_stack)
-
             with writer.as_default():
                 tf.summary.image('predictions', stack, step=step, max_outputs=3)
-                tf.summary.image('second predictions', second_stack, step=step, max_outputs=3)
 
             step += 1
 
@@ -151,31 +150,50 @@ class HybridReconstuctor(Pix2Pix):
 
 
 def main():
-    log_path = r'..\logs\full_temple_train'
+    log_path = r'..\logs\colors_015_batch4'
     ds_path = r'..\dataset'
-    temple_list = ['temple_1', 'temple_2', 'temple_3', 'temple_4', 'temple_5', 'temple_6',
-                   'temple_7', 'temple_8', 'temple_9']
+    temple_list = ['temple_1', 'temple_0', 'temple_5']
     cp.RESIZE_FACTOR = 1.3
+
     reconstructor = HybridReconstuctor(log_dir=log_path, autobuild=True)
+
     train, validation = reconstructor.get_dataset(temples=temple_list, dataset_path=ds_path, split=0.25)
-    reconstructor.fit(train, validation, 50)
-    tf.keras.models.save_model(reconstructor.generator, '../trained_models/reconstructor.h5')
+    reconstructor.fit(train, epochs=50)
+    tf.keras.models.save_model(reconstructor.generator, '../trained_models/reconstructor_015_batch4.h5')
 
 
+# TODO: simplify/unify prediction functions and methods
 def predict_batch(target='temple_0', ruins=1):
     temple = target
 
-    log_path = r'..\logs\full_temple_train\\' + temple + f'_ruins_{ruins}'
+    log_path = r'..\logs\full_temple_train_pix2pix\\' + temple + f'_ruins_{ruins}'
 
     ds_path = r'..\dataset\\'
     ruins = ds_path + r'temples_ruins\\' + temple + f'_ruins_{ruins}'
     colors = ds_path + r'colors_temples\colors_' + temple
     temples = ds_path + r'temples\\' + temple
 
-    reconstructor = HybridReconstuctor(gen_path='../trained_models/reconstructor.h5', autobuild=False)
+    reconstructor = HybridReconstuctor(gen_path='../trained_models/reconstructor_simple.h5', autobuild=False)
     predict_ds = reconstructor.get_single_dataset(ruins, temples, colors, training=False)
     predict_ds = predict_ds.batch(1)
+
     reconstructor.predict(predict_ds, log_path, samples='all')
+
+
+def predict_single(paths):
+    images = cp.load(paths)
+    images = cp.normalize(images)
+
+    ruin = tf.expand_dims(images[0], 0)
+    colors = tf.expand_dims(images[1], 0)
+
+    reconstructor = HybridReconstuctor(gen_path='../trained_models/temples_to_color.h5', autobuild=False)
+    prediction = reconstructor.generator(ruin)
+
+    writer = reconstructor._get_summary_writer('..\\logs\\test')
+
+    with writer.as_default():
+        tf.summary.image('test', prediction, step=0)
 
 
 if __name__ == '__main__':

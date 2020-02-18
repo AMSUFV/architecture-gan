@@ -81,7 +81,7 @@ class Pix2Pix:
         self.generator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
         self.discriminator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
 
-        self.loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+        self.loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True, label_smoothing=0.2)
 
         self.LAMBDA = 100
 
@@ -114,6 +114,9 @@ class Pix2Pix:
                                 self.val_gen_loss,
                                 self.val_real_acc,
                                 self.val_gen_acc]
+
+    def __call__(self, *args):
+        return self.generator(args[0], training=False)
 
     @staticmethod
     def _get_summary_writer(path: str, time: str = None, name: str = 'train'):
@@ -204,15 +207,7 @@ class Pix2Pix:
         return tf.keras.Model(inputs=input_layers, outputs=x)
 
     @staticmethod
-    def build_discriminator(target=True, initial_units=64, layers=4, input_shape=None):
-        """Patch-like discriminator creation function.
-
-        :param target:
-        :param initial_units:
-        :param layers:
-        :param input_shape:
-        :return:
-        """
+    def build_discriminator(input_shape=None, target=True, initial_units=64, layers=4):
         if input_shape is None:
             input_shape = [None, None, 3]
 
@@ -254,12 +249,12 @@ class Pix2Pix:
 
         return total_disc_loss * 0.5
 
-    def generator_loss(self, disc_generated_output, gen_output, target, lmda=100):
+    def generator_loss(self, disc_generated_output, gen_output, target):
         g_loss = self.loss_object(tf.ones_like(disc_generated_output), disc_generated_output)
 
         l1_loss = tf.reduce_mean(tf.abs(target - gen_output))
 
-        total_gen_loss = g_loss + (lmda * l1_loss)
+        total_gen_loss = g_loss + (self.LAMBDA * l1_loss)
 
         return total_gen_loss
 
@@ -327,13 +322,14 @@ class Pix2Pix:
             # Validation
             if test_ds is not None:
                 for input_image, target_image in test_ds:
-                    self.validate(test_ds )
+                    self.validate(test_ds)
 
             self._metric_update(train_ds, test_ds, epoch)
 
             if epoch % 10 == 0:
                 self._train_predict(train_ds, self.train_summary_writer, epoch, 'train')
-                self._train_predict(test_ds, self.val_summary_writer, epoch, 'validation')
+                if test_ds is not None:
+                    self._train_predict(test_ds, self.val_summary_writer, epoch, 'validation')
 
     def _metric_update(self, train_ds, test_ds, epoch):
         if self.log_dir is not None:

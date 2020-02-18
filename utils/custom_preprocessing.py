@@ -19,14 +19,22 @@ def load_images_train(*paths):
 def load_images_test(*paths):
     images = load(paths)
     images = resize(IMG_WIDTH, IMG_HEIGHT, images)
-    images = random_crop(images)
+    images = central_crop(images)
     images = normalize(images)
     return images
 
 
+def central_crop(images):
+    stack = tf.stack(images)
+    offset_height = (IMG_HEIGHT - TGT_HEIGHT) // 2
+    crop = tf.image.crop_to_bounding_box(stack, offset_height=offset_height, offset_width=0, target_height=TGT_HEIGHT,
+                                         target_width=TGT_WIDTH)
+    crop = tf.unstack(crop, num=len(images))
+    return crop
+
+
 def load(paths):
     images = []
-    # paths = zip(*paths)
     for path in paths:
         image = tf.io.read_file(tf.squeeze(path))
         image = tf.image.decode_png(image, channels=3)
