@@ -1,6 +1,5 @@
 import datetime
 import glob
-import time
 
 import tensorflow as tf
 from models.pix2pix import Pix2Pix
@@ -8,9 +7,6 @@ from utils import custom_preprocessing as cp
 
 
 class HybridReconstuctor(Pix2Pix):
-    def __call__(self, *args):
-        return self.generator([args[0], args[1]], training=False)
-
     def get_dataset(self, temples, dataset_path=None, split=0.2, ruins_per_temple=2, input_shape=None):
         if input_shape is not None:
             cp.IMG_WIDTH, cp.IMG_HEIGHT = input_shape
@@ -37,19 +33,13 @@ class HybridReconstuctor(Pix2Pix):
 
         # train/val split
         train_size = buffer_size - round(buffer_size * split)
-        train = train_dataset.take(train_size).shuffle(train_size, reshuffle_each_iteration=False).batch(4)
-        validation = train_dataset.skip(train_size).shuffle(buffer_size - train_size, reshuffle_each_iteration=False)\
-            .batch(4)
+        train = train_dataset.take(train_size).map(cp.load_images_train).batch(1)
+        validation = train_dataset.skip(train_size).map(cp.load_images_test).batch(1)
 
         return train, validation
 
     @staticmethod
-    def get_single_dataset(ruins_path, temple_path, colors_path, training=True):
-        if training:
-            preprocessing_function = cp.load_images_train
-        else:
-            preprocessing_function = cp.load_images_test
-
+    def get_single_dataset(ruins_path, temple_path, colors_path):
         ruins_path_list = glob.glob(ruins_path + r'\*.png')
         colors_path_list = glob.glob(colors_path + r'\*.png')
         temple_path_list = glob.glob(temple_path + r'\*.png')
@@ -57,14 +47,13 @@ class HybridReconstuctor(Pix2Pix):
         repetition = len(ruins_path_list) // len(temple_path_list)
 
         ruins_dataset = tf.data.Dataset.list_files(ruins_path_list, shuffle=False)
-        colors_dataset = tf.data.Dataset.list_files(colors_path_list, shuffle=False)
         temple_dataset = tf.data.Dataset.list_files(temple_path_list, shuffle=False)
+        colors_dataset = tf.data.Dataset.list_files(colors_path_list, shuffle=False)
 
-        colors_dataset = colors_dataset.repeat(repetition)
         temple_dataset = temple_dataset.repeat(repetition)
+        colors_dataset = colors_dataset.repeat(repetition)
 
         dataset = tf.data.Dataset.zip((ruins_dataset, temple_dataset, colors_dataset))
-        dataset = dataset.map(preprocessing_function)
 
         return dataset
 
@@ -101,6 +90,10 @@ class HybridReconstuctor(Pix2Pix):
                 self.validate(test_ds)
 
             self._metric_update(train_ds, test_ds, epoch)
+            if self.log_dir is not None:
+                self._train_predict(train_ds, self.train_summary_writer, epoch, 'train')
+                if test_ds is not None:
+                    self._train_predict(test_ds, self.val_summary_writer, epoch, 'validation')
 
     # prediction methods
     def predict(self, dataset, log_path, samples):
@@ -149,17 +142,16 @@ class HybridReconstuctor(Pix2Pix):
                 tf.summary.image(name, stack, step=step, max_outputs=4)
 
 
-def main():
-    log_path = r'..\logs\colors_015_batch4'
+def main(training_name, temples):
+    log_path = f'..\\logs\\{training_name}'
     ds_path = r'..\dataset'
-    temple_list = ['temple_1', 'temple_0', 'temple_5']
     cp.RESIZE_FACTOR = 1.3
 
     reconstructor = HybridReconstuctor(log_dir=log_path, autobuild=True)
 
-    train, validation = reconstructor.get_dataset(temples=temple_list, dataset_path=ds_path, split=0.25)
-    reconstructor.fit(train, epochs=50)
-    tf.keras.models.save_model(reconstructor.generator, '../trained_models/reconstructor_015_batch4.h5')
+    train, validation = reconstructor.get_dataset(temples=temples, dataset_path=ds_path, split=0.25)
+    reconstructor.fit(train, validation, epochs=50)
+    tf.keras.models.save_model(reconstructor.generator, f'../trained_models/{training_name}.h5')
 
 
 # TODO: simplify/unify prediction functions and methods
@@ -197,4 +189,5 @@ def predict_single(paths):
 
 
 if __name__ == '__main__':
-    main()
+    temple_list = ['temple_0', 'temple_1', 'temple_5']
+    main(training_name='colors_015_batch1', temples=temple_list)

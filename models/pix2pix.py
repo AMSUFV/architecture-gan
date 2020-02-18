@@ -115,9 +115,6 @@ class Pix2Pix:
                                 self.val_real_acc,
                                 self.val_gen_acc]
 
-    def __call__(self, *args):
-        return self.generator(args[0], training=False)
-
     @staticmethod
     def _get_summary_writer(path: str, time: str = None, name: str = 'train'):
         """Summary writer creation method. Creates and returns a Tensorboard summary writer for the specified path.
@@ -247,7 +244,7 @@ class Pix2Pix:
 
         total_disc_loss = real_loss + generated_loss
 
-        return total_disc_loss * 0.5
+        return total_disc_loss
 
     def generator_loss(self, disc_generated_output, gen_output, target):
         g_loss = self.loss_object(tf.ones_like(disc_generated_output), disc_generated_output)
