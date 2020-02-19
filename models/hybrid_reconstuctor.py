@@ -59,7 +59,7 @@ class HybridReconstuctor(Pix2Pix):
         return dataset
 
     @staticmethod
-    def get_prediction_dataset(*paths, samples):
+    def get_prediction_dataset(*paths):
         # Survey
         path_collection = []
         for path in paths:
@@ -113,7 +113,7 @@ class HybridReconstuctor(Pix2Pix):
                     self._train_predict(test_ds, self.val_summary_writer, epoch, 'validation')
 
     # prediction methods
-    def predict(self, dataset, log_path, samples, image_name=None):
+    def predict(self, dataset, log_path, samples):
         current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
         writer = self._get_summary_writer(log_path, current_time, 'predict')
 
@@ -132,19 +132,10 @@ class HybridReconstuctor(Pix2Pix):
             with writer.as_default():
                 tf.summary.image('predictions', stack, step=step, max_outputs=4)
 
-            
-            # Saving
-            # ruin_image = tf.squeeze(x)
-            # ruin_image = Image.fromarray(ruin_image.numpy())
-            # ruin_image.save(f'../survey/ruins/ruin_{step}.png')
-            # reconstruction_image = tf.squeeze(prediction)
-            # reconstruction_image = Image.fromarray(reconstruction_image.numpy())
-            # reconstruction_image.save(f'../survey/')
-
             step += 1
 
     def validate(self, test):
-        for test_ruin, test_temple, test_color in test.take(1):
+        for test_ruin, test_temple, test_color in test:
             gen_output = self.generator([test_ruin, test_color], training=False)
 
             disc_real_output = self.discriminator([test_ruin, test_temple], training=False)
@@ -188,36 +179,18 @@ def main(training_name, temples):
 def predict_batch(target='temple_0', ruins=1):
     temple = target
 
-    log_path = r'..\logs\colors_all0_risinglambda\\' + temple + f'_ruins_{ruins}'
+    log_path = r'..\logs\survey\pairs'
 
     ds_path = r'..\dataset\\'
     ruins = ds_path + r'temples_ruins\\' + temple + f'_ruins_{ruins}'
     colors = ds_path + r'colors_temples\colors_' + temple
     temples = ds_path + r'temples\\' + temple
 
-    reconstructor = HybridReconstuctor(gen_path='../trained_models/colors_all0_risinglambda.h5', autobuild=False)
-    # predict_ds = reconstructor.get_dataset(temples=[target], ruins_per_temple=1)
-    # predict_ds = predict_ds.batch(1)
+    reconstructor = HybridReconstuctor(gen_path='../trained_models/reconstructor.h5', autobuild=False)
     predict_ds = reconstructor.get_prediction_dataset(ruins, temples, colors)
 
-    reconstructor.predict(predict_ds, log_path, samples='all', image_name=f'{temple}_ruins_{ruins}')
-
-
-def predict_single(paths):
-    images = cp.load(paths)
-    images = cp.normalize(images)
-
-    ruin = tf.expand_dims(images[0], 0)
-    colors = tf.expand_dims(images[1], 0)
-
-    reconstructor = HybridReconstuctor(gen_path='../trained_models/temples_to_color.h5', autobuild=False)
-    prediction = reconstructor.generator(ruin)
-
-    writer = reconstructor._get_summary_writer('..\\logs\\test')
-
-    with writer.as_default():
-        tf.summary.image('test', prediction, step=0)
+    reconstructor.predict(predict_ds, log_path, samples='all')
 
 
 if __name__ == '__main__':
-    predict_batch(target='temple_3', ruins=1)
+    predict_batch(target='temple_0', ruins=1)

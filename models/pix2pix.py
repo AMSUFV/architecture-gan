@@ -84,14 +84,6 @@ class Pix2Pix:
 
         self.LAMBDA = 100
 
-        # Checkpoints
-        # checkpoint_dir = '../training_checkpoints'
-        # checkpoint_prefix = os.path.join(checkpoint_dir, 'ckpt')
-        # checkpoint = tf.train.Checkpoint(generator_optimizer=self.generator_optimizer,
-        #                                  discriminator_optimizer=self.discriminator_optimizer,
-        #                                  generator=self.generator,
-        #                                  discriminator=self.discriminator)
-
         # TODO: Think of a better way to handle this to keep single responsibility; e.g. create a diferent class.
         # Tensorboard
         self.log_dir = log_dir
@@ -240,18 +232,14 @@ class Pix2Pix:
     # Metrics
     def discriminator_loss(self, disc_real_output, disc_generated_output):
         real_loss = self.loss_object(tf.ones_like(disc_real_output), disc_real_output)
-
         generated_loss = self.loss_object(tf.zeros_like(disc_generated_output), disc_generated_output)
-
         total_disc_loss = real_loss + generated_loss
 
         return total_disc_loss
 
     def generator_loss(self, disc_generated_output, gen_output, target):
         g_loss = self.loss_object(tf.ones_like(disc_generated_output), disc_generated_output)
-
         l1_loss = tf.reduce_mean(tf.abs(target - gen_output))
-
         total_gen_loss = g_loss + (self.LAMBDA * l1_loss)
 
         return total_gen_loss
@@ -319,8 +307,7 @@ class Pix2Pix:
                 self.train_step(input_image, target)
             # Validation
             if test_ds is not None:
-                for input_image, target_image in test_ds:
-                    self.validate(test_ds)
+                self.validate(test_ds)
 
             self._metric_update(train_ds, test_ds, epoch)
 
@@ -339,7 +326,7 @@ class Pix2Pix:
                 self._reset_metrics(self.val_metrics)
 
     def validate(self, test):
-        for test_in, test_out in test.take(1):
+        for test_in, test_out in test:
             gen_output = self.generator(test_in, training=False)
 
             disc_real_output = self.discriminator([test_in, test_out], training=False)
