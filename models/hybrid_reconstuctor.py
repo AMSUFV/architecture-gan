@@ -1,16 +1,15 @@
 import datetime
 import glob
 
+import numpy as np
 import tensorflow as tf
 from models.pix2pix import Pix2Pix
 from utils import custom_preprocessing as cp
+from PIL import Image
 
 
 class HybridReconstuctor(Pix2Pix):
-    def get_dataset(self, temples, dataset_path=None, split=None, ruins_per_temple=2, input_shape=None):
-        if input_shape is not None:
-            cp.IMG_WIDTH, cp.IMG_HEIGHT = input_shape
-
+    def get_dataset(self, *, temples, ruins_per_temple=1, dataset_path=None, split=0.25, shuffle=True):
         if dataset_path is None:
             dataset_path = r'..\dataset\\'
 
@@ -29,19 +28,15 @@ class HybridReconstuctor(Pix2Pix):
         for dataset in datasets:
             train_dataset = train_dataset.concatenate(dataset)
 
-        train_dataset = train_dataset.shuffle(buffer_size)
+        if shuffle:
+            train_dataset = train_dataset.shuffle(buffer_size)
 
-        if split is not None:
-            # train/val split
-            train_size = buffer_size - round(buffer_size * split)
-            train = train_dataset.take(train_size).map(cp.load_images_train).batch(1)
-            validation = train_dataset.skip(train_size).map(cp.load_images_test).batch(1)
+        # train/val split
+        train_size = buffer_size - round(buffer_size * split)
+        train = train_dataset.take(train_size).map(cp.load_images_train).batch(1)
+        validation = train_dataset.skip(train_size).map(cp.load_images_test).batch(1)
 
-            return train, validation
-
-        else:
-            train = train_dataset.map(cp.load_images_test).batch(1)
-            return train
+        return train, validation
 
     @staticmethod
     def get_single_dataset(ruins_path, temple_path, colors_path):
@@ -55,23 +50,29 @@ class HybridReconstuctor(Pix2Pix):
         temple_dataset = tf.data.Dataset.list_files(temple_path_list, shuffle=False)
         colors_dataset = tf.data.Dataset.list_files(colors_path_list, shuffle=False)
 
-        temple_dataset = temple_dataset.repeat(repetition)
-        colors_dataset = colors_dataset.repeat(repetition)
+        if repetition > 1:
+            temple_dataset = temple_dataset.repeat(repetition)
+            colors_dataset = colors_dataset.repeat(repetition)
 
         dataset = tf.data.Dataset.zip((ruins_dataset, temple_dataset, colors_dataset))
 
         return dataset
 
-    def generator_loss(self, disc_generated_output, gen_output, target):
-        g_loss = self.loss_object(tf.ones_like(disc_generated_output), disc_generated_output)
-        # TODO: finish this. Maybe make epoch an attribute?
+    @staticmethod
+    def get_prediction_dataset(*paths, samples):
+        # Survey
+        path_collection = []
+        for path in paths:
+            path_collection.append(glob.glob(path + '\\*.png'))
 
-        current_lambda = self.initial_lambda + ((self.final_lambda - self.initial_lambda) / self.total_epochs) * self.current_epoch
-        l1_loss = tf.reduce_mean(tf.abs(target - gen_output))
+        datasets = []
+        for file_dataset in path_collection:
+            datasets.append(tf.data.Dataset.list_files(file_dataset, shuffle=False))
 
-        total_gen_loss = g_loss + (current_lambda * l1_loss)
+        dataset = tf.data.Dataset.zip(tuple(datasets))
+        dataset = dataset.map(cp.load_images_test).batch(1)
 
-        return total_gen_loss
+        return dataset
 
     @tf.function
     def train_step(self, ruin, temple, color):
@@ -97,9 +98,7 @@ class HybridReconstuctor(Pix2Pix):
             self.train_gen_acc(tf.zeros_like(disc_generated), disc_generated)
 
     def fit(self, train_ds, test_ds=None, epochs=100):
-        self.total_epochs = epochs
         for epoch in range(epochs):
-            self.current_epoch = epoch + 1
             # Train
             for ruin, temple, color in train_ds:
                 self.train_step(ruin, temple, color)
@@ -114,7 +113,7 @@ class HybridReconstuctor(Pix2Pix):
                     self._train_predict(test_ds, self.val_summary_writer, epoch, 'validation')
 
     # prediction methods
-    def predict(self, dataset, log_path, samples):
+    def predict(self, dataset, log_path, samples, image_name=None):
         current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
         writer = self._get_summary_writer(log_path, current_time, 'predict')
 
@@ -132,6 +131,15 @@ class HybridReconstuctor(Pix2Pix):
 
             with writer.as_default():
                 tf.summary.image('predictions', stack, step=step, max_outputs=4)
+
+            
+            # Saving
+            # ruin_image = tf.squeeze(x)
+            # ruin_image = Image.fromarray(ruin_image.numpy())
+            # ruin_image.save(f'../survey/ruins/ruin_{step}.png')
+            # reconstruction_image = tf.squeeze(prediction)
+            # reconstruction_image = Image.fromarray(reconstruction_image.numpy())
+            # reconstruction_image.save(f'../survey/')
 
             step += 1
 
@@ -188,10 +196,11 @@ def predict_batch(target='temple_0', ruins=1):
     temples = ds_path + r'temples\\' + temple
 
     reconstructor = HybridReconstuctor(gen_path='../trained_models/colors_all0_risinglambda.h5', autobuild=False)
-    predict_ds = reconstructor.get_dataset(temples=[target], ruins_per_temple=1)
+    # predict_ds = reconstructor.get_dataset(temples=[target], ruins_per_temple=1)
     # predict_ds = predict_ds.batch(1)
+    predict_ds = reconstructor.get_prediction_dataset(ruins, temples, colors)
 
-    reconstructor.predict(predict_ds, log_path, samples='all')
+    reconstructor.predict(predict_ds, log_path, samples='all', image_name=f'{temple}_ruins_{ruins}')
 
 
 def predict_single(paths):
@@ -211,4 +220,4 @@ def predict_single(paths):
 
 
 if __name__ == '__main__':
-    predict_batch(ruins=0)
+    predict_batch(target='temple_3', ruins=1)

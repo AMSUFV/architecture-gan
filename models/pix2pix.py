@@ -2,7 +2,6 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import datetime
 import glob
-import os
 
 import tensorflow as tf
 from utils import pix2pix_preprocessing as preprocessing
@@ -82,11 +81,6 @@ class Pix2Pix:
         self.discriminator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
 
         self.loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True, label_smoothing=0.1)
-
-        self.initial_lambda = 100
-        self.final_lambda = 200
-        self.current_epoch = 0
-        self.total_epochs = None
 
         self.LAMBDA = 100
 
