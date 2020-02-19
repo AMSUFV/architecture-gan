@@ -7,7 +7,7 @@ from utils import custom_preprocessing as cp
 
 
 class HybridReconstuctor(Pix2Pix):
-    def get_dataset(self, temples, dataset_path=None, split=0.2, ruins_per_temple=2, input_shape=None):
+    def get_dataset(self, temples, dataset_path=None, split=None, ruins_per_temple=2, input_shape=None):
         if input_shape is not None:
             cp.IMG_WIDTH, cp.IMG_HEIGHT = input_shape
 
@@ -31,12 +31,17 @@ class HybridReconstuctor(Pix2Pix):
 
         train_dataset = train_dataset.shuffle(buffer_size)
 
-        # train/val split
-        train_size = buffer_size - round(buffer_size * split)
-        train = train_dataset.take(train_size).map(cp.load_images_train).batch(1)
-        validation = train_dataset.skip(train_size).map(cp.load_images_test).batch(1)
+        if split is not None:
+            # train/val split
+            train_size = buffer_size - round(buffer_size * split)
+            train = train_dataset.take(train_size).map(cp.load_images_train).batch(1)
+            validation = train_dataset.skip(train_size).map(cp.load_images_test).batch(1)
 
-        return train, validation
+            return train, validation
+
+        else:
+            train = train_dataset.map(cp.load_images_test).batch(1)
+            return train
 
     @staticmethod
     def get_single_dataset(ruins_path, temple_path, colors_path):
@@ -121,12 +126,12 @@ class HybridReconstuctor(Pix2Pix):
 
         for x, y, z in target:
             # x and z are the inputs
-            prediction = self.generator(x, training=False)
-            stack = tf.stack([x, prediction, y], axis=0) * 0.5 + 0.5
+            prediction = self.generator([x, z], training=False)
+            stack = tf.stack([x, z, prediction, y], axis=0) * 0.5 + 0.5
             stack = tf.squeeze(stack)
 
             with writer.as_default():
-                tf.summary.image('predictions', stack, step=step, max_outputs=3)
+                tf.summary.image('predictions', stack, step=step, max_outputs=4)
 
             step += 1
 
@@ -175,16 +180,16 @@ def main(training_name, temples):
 def predict_batch(target='temple_0', ruins=1):
     temple = target
 
-    log_path = r'..\logs\full_temple_train_pix2pix\\' + temple + f'_ruins_{ruins}'
+    log_path = r'..\logs\colors_all0_risinglambda\\' + temple + f'_ruins_{ruins}'
 
     ds_path = r'..\dataset\\'
     ruins = ds_path + r'temples_ruins\\' + temple + f'_ruins_{ruins}'
     colors = ds_path + r'colors_temples\colors_' + temple
     temples = ds_path + r'temples\\' + temple
 
-    reconstructor = HybridReconstuctor(gen_path='../trained_models/reconstructor_simple.h5', autobuild=False)
-    predict_ds = reconstructor.get_single_dataset(ruins, temples, colors)
-    predict_ds = predict_ds.batch(1)
+    reconstructor = HybridReconstuctor(gen_path='../trained_models/colors_all0_risinglambda.h5', autobuild=False)
+    predict_ds = reconstructor.get_dataset(temples=[target], ruins_per_temple=1)
+    # predict_ds = predict_ds.batch(1)
 
     reconstructor.predict(predict_ds, log_path, samples='all')
 
@@ -206,5 +211,4 @@ def predict_single(paths):
 
 
 if __name__ == '__main__':
-    temple_list = [f'temple_{x}' for x in range(1, 10)]
-    main(training_name='colors_all0_risinglambda', temples=temple_list)
+    predict_batch(ruins=0)
