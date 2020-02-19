@@ -1,9 +1,10 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-import glob
 import datetime
-import tensorflow as tf
+import glob
+import os
 
+import tensorflow as tf
 from utils import pix2pix_preprocessing as preprocessing
 
 
@@ -60,7 +61,6 @@ def upsample(filters: int, size: int, apply_dropout=False):
 class Pix2Pix:
     """Pix2Pix tailored to the needs of the ARQGAN project.
     """
-
     def __init__(self, *, gen_path: str = None, disc_path: str = None, log_dir: str = None, autobuild=False):
         """Initialization of the Pix2Pix object. If paths for the generator and the discriminator are not specified,
         new ones will be created. Keeping logs of the training is recomended but optional.
@@ -81,9 +81,22 @@ class Pix2Pix:
         self.generator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
         self.discriminator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
 
-        self.loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True, label_smoothing=0.2)
+        self.loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True, label_smoothing=0.1)
+
+        self.initial_lambda = 100
+        self.final_lambda = 200
+        self.current_epoch = 0
+        self.total_epochs = None
 
         self.LAMBDA = 100
+
+        # Checkpoints
+        # checkpoint_dir = '../training_checkpoints'
+        # checkpoint_prefix = os.path.join(checkpoint_dir, 'ckpt')
+        # checkpoint = tf.train.Checkpoint(generator_optimizer=self.generator_optimizer,
+        #                                  discriminator_optimizer=self.discriminator_optimizer,
+        #                                  generator=self.generator,
+        #                                  discriminator=self.discriminator)
 
         # TODO: Think of a better way to handle this to keep single responsibility; e.g. create a diferent class.
         # Tensorboard
@@ -200,24 +213,18 @@ class Pix2Pix:
         x = last(x)
 
         if inplace:
-            self.generator = tf.keras.Model
+            self.generator = tf.keras.Model(inputs=input_layers, outputs=x)
         return tf.keras.Model(inputs=input_layers, outputs=x)
 
-    @staticmethod
-    def build_discriminator(input_shape=None, target=True, initial_units=64, layers=4):
+    def build_discriminator(self, input_shape=None, initial_units=64, layers=4, inplace=True):
         if input_shape is None:
             input_shape = [None, None, 3]
 
-        target_image = None
-
         initializer = tf.random_normal_initializer(0., 0.02)
-        inp = tf.keras.layers.Input(shape=input_shape, name='input_image')
 
-        if not target:
-            x = inp
-        else:
-            target_image = tf.keras.layers.Input(shape=input_shape, name='target_image')
-            x = tf.keras.layers.concatenate([inp, target_image])
+        inp = tf.keras.layers.Input(shape=input_shape, name='input_image')
+        target_image = tf.keras.layers.Input(shape=input_shape, name='target_image')
+        x = tf.keras.layers.concatenate([inp, target_image])
 
         multipliyer = 1
         for layer in range(layers):
@@ -231,10 +238,10 @@ class Pix2Pix:
 
         last = tf.keras.layers.Conv2D(1, 4, strides=1, kernel_initializer=initializer)(x)
 
-        if target:
-            return tf.keras.Model(inputs=[inp, target_image], outputs=last)
+        if inplace:
+            self.discriminator = tf.keras.Model(inputs=[inp, target_image], outputs=last)
         else:
-            return tf.keras.Model(inputs=inp, outputs=last)
+            return tf.keras.Model(inputs=[inp, target_image], outputs=last)
 
     # Metrics
     def discriminator_loss(self, disc_real_output, disc_generated_output):

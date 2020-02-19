@@ -57,6 +57,17 @@ class HybridReconstuctor(Pix2Pix):
 
         return dataset
 
+    def generator_loss(self, disc_generated_output, gen_output, target):
+        g_loss = self.loss_object(tf.ones_like(disc_generated_output), disc_generated_output)
+        # TODO: finish this. Maybe make epoch an attribute?
+
+        current_lambda = self.initial_lambda + ((self.final_lambda - self.initial_lambda) / self.total_epochs) * self.current_epoch
+        l1_loss = tf.reduce_mean(tf.abs(target - gen_output))
+
+        total_gen_loss = g_loss + (current_lambda * l1_loss)
+
+        return total_gen_loss
+
     @tf.function
     def train_step(self, ruin, temple, color):
         with tf.GradientTape(persistent=True) as tape:
@@ -81,7 +92,9 @@ class HybridReconstuctor(Pix2Pix):
             self.train_gen_acc(tf.zeros_like(disc_generated), disc_generated)
 
     def fit(self, train_ds, test_ds=None, epochs=100):
+        self.total_epochs = epochs
         for epoch in range(epochs):
+            self.current_epoch = epoch + 1
             # Train
             for ruin, temple, color in train_ds:
                 self.train_step(ruin, temple, color)
@@ -143,11 +156,15 @@ class HybridReconstuctor(Pix2Pix):
 
 
 def main(training_name, temples):
+    # TODO: standarise r and f
     log_path = f'..\\logs\\{training_name}'
     ds_path = r'..\dataset'
     cp.RESIZE_FACTOR = 1.3
 
-    reconstructor = HybridReconstuctor(log_dir=log_path, autobuild=True)
+    reconstructor = HybridReconstuctor(log_dir=log_path, autobuild=False)
+
+    reconstructor.build_generator(heads=2, inplace=True)
+    reconstructor.build_discriminator(inplace=True)
 
     train, validation = reconstructor.get_dataset(temples=temples, dataset_path=ds_path, split=0.25)
     reconstructor.fit(train, validation, epochs=50)
@@ -166,7 +183,7 @@ def predict_batch(target='temple_0', ruins=1):
     temples = ds_path + r'temples\\' + temple
 
     reconstructor = HybridReconstuctor(gen_path='../trained_models/reconstructor_simple.h5', autobuild=False)
-    predict_ds = reconstructor.get_single_dataset(ruins, temples, colors, training=False)
+    predict_ds = reconstructor.get_single_dataset(ruins, temples, colors)
     predict_ds = predict_ds.batch(1)
 
     reconstructor.predict(predict_ds, log_path, samples='all')
@@ -189,5 +206,5 @@ def predict_single(paths):
 
 
 if __name__ == '__main__':
-    temple_list = ['temple_0', 'temple_1', 'temple_5']
-    main(training_name='colors_015_batch1', temples=temple_list)
+    temple_list = [f'temple_{x}' for x in range(1, 10)]
+    main(training_name='colors_all0_risinglambda', temples=temple_list)
