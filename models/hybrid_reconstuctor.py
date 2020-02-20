@@ -112,6 +112,22 @@ class HybridReconstuctor(Pix2Pix):
                 if test_ds is not None:
                     self._train_predict(test_ds, self.val_summary_writer, epoch, 'validation')
 
+    def validate(self, test):
+        for test_ruin, test_temple, test_color in test:
+            gen_output = self.generator([test_ruin, test_color], training=False)
+
+            disc_real_output = self.discriminator([test_ruin, test_temple], training=False)
+            disc_generated_output = self.discriminator([test_ruin, gen_output], training=False)
+
+            gen_loss = self.generator_loss(disc_generated_output, gen_output, test_temple)
+            disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
+
+            if self.log_dir is not None:
+                self.val_disc_loss(disc_loss)
+                self.val_gen_loss(gen_loss)
+                self.val_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
+                self.val_real_acc(tf.ones_like(disc_real_output), disc_real_output)
+
     # prediction methods
     def predict(self, dataset, log_path, samples):
         current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
@@ -133,22 +149,6 @@ class HybridReconstuctor(Pix2Pix):
                 tf.summary.image('predictions', stack, step=step, max_outputs=4)
 
             step += 1
-
-    def validate(self, test):
-        for test_ruin, test_temple, test_color in test:
-            gen_output = self.generator([test_ruin, test_color], training=False)
-
-            disc_real_output = self.discriminator([test_ruin, test_temple], training=False)
-            disc_generated_output = self.discriminator([test_ruin, gen_output], training=False)
-
-            gen_loss = self.generator_loss(disc_generated_output, gen_output, test_temple)
-            disc_loss = self.discriminator_loss(disc_real_output, disc_generated_output)
-
-            if self.log_dir is not None:
-                self.val_disc_loss(disc_loss)
-                self.val_gen_loss(gen_loss)
-                self.val_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
-                self.val_real_acc(tf.ones_like(disc_real_output), disc_real_output)
 
     def _train_predict(self, dataset, writer, step, name='train'):
         for ruin, temple, color in dataset.take(1):
@@ -179,18 +179,20 @@ def main(training_name, temples):
 def predict_batch(target='temple_0', ruins=1):
     temple = target
 
-    log_path = r'..\logs\survey\pairs'
+    log_path = r'..\logs\colors_all0_risinglambda300'
 
     ds_path = r'..\dataset\\'
     ruins = ds_path + r'temples_ruins\\' + temple + f'_ruins_{ruins}'
     colors = ds_path + r'colors_temples\colors_' + temple
     temples = ds_path + r'temples\\' + temple
 
-    reconstructor = HybridReconstuctor(gen_path='../trained_models/reconstructor.h5', autobuild=False)
+    reconstructor = HybridReconstuctor(gen_path='../trained_models/colors_all0_risinglambda300.h5', autobuild=False)
     predict_ds = reconstructor.get_prediction_dataset(ruins, temples, colors)
 
     reconstructor.predict(predict_ds, log_path, samples='all')
 
 
 if __name__ == '__main__':
-    predict_batch(target='temple_0', ruins=1)
+    reconstructor = HybridReconstuctor(autobuild=False)
+    reconstructor.build_discriminator(input_shape=[512, 256, 3], initial_units=32, layers=5, inplace=True)
+    reconstructor.discriminator.summary()
