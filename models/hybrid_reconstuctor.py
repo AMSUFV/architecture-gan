@@ -31,6 +31,10 @@ class HybridReconstuctor(Pix2Pix):
         if shuffle:
             train_dataset = train_dataset.shuffle(buffer_size)
 
+        if split is None:
+            train_dataset.map(cp.load_images_test).batch(1)
+            return train_dataset
+
         # train/val split
         train_size = buffer_size - round(buffer_size * split)
         train = train_dataset.take(train_size).map(cp.load_images_train).batch(1)
