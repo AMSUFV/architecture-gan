@@ -8,3 +8,5 @@ scratch*
 *.skb
 *.skp
 *.v2
+/other/
+/notebooks/

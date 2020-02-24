@@ -133,6 +133,10 @@ class HybridReconstuctor(Pix2Pix):
                 self.val_real_acc(tf.ones_like(disc_real_output), disc_real_output)
 
     # prediction methods
+    def final_predict(self, sample):
+        return self.generator(sample, training=False)
+        pass
+
     def predict(self, dataset, log_path, samples):
         current_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
         writer = self._get_summary_writer(log_path, current_time, 'predict')

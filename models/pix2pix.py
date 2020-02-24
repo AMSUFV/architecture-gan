@@ -57,6 +57,7 @@ def upsample(filters: int, size: int, apply_dropout=False):
 
 
 # TODO add training checkpoints
+# TODO add early stopping
 class Pix2Pix:
     """Pix2Pix tailored to the needs of the ARQGAN project.
     """

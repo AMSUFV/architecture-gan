@@ -37,56 +37,6 @@ class Classifier:
         self.train_metrics = [self.train_disc_loss, self.train_acc_real, self.train_acc_gen]
         self.val_metrics = [self.val_disc_loss, self.val_acc_real, self.val_acc_gen]
 
-    def kfold_cv(self, k=5):
-        paths_in = glob.glob('../dataset/temples_ruins/temple_0_*/*.png')
-        paths_in_color = glob.glob('../dataset/colors_temples/colors_temple_0/*.png') * 2
-        paths_out = glob.glob('../dataset/temples/temple_0/*.png') * 2
-
-        paths = [paths_in, paths_in_color, paths_out]
-        for path in paths:
-            random.seed(1)
-            random.shuffle(path)
-
-        total = len(paths_in)
-        group_size = total // k
-
-        test_start = 0
-        test_end = group_size
-        for group in range(k):
-            self.discriminator = self.build_discriminator()
-
-            # Dataset obtention
-            train_in = paths_in[:test_start] + paths_in[test_end:]
-            train_in_color = paths_in_color[:test_start] + paths_in_color[test_end:]
-            train_out = paths_out[:test_start] + paths_out[test_end:]
-
-            train_in = tf.data.Dataset.from_tensor_slices(train_in)
-            train_in_color = tf.data.Dataset.from_tensor_slices(train_in_color)
-            train_out = tf.data.Dataset.from_tensor_slices(train_out)
-
-            val_in = tf.data.Dataset.from_tensor_slices(paths_in[test_start:test_end])
-            val_in_color = tf.data.Dataset.from_tensor_slices(paths_in_color[test_start:test_end])
-            val_out = tf.data.Dataset.from_tensor_slices(paths_out[test_start:test_end])
-
-            k_train = tf.data.Dataset.zip((train_in, train_out, train_in_color))
-            k_test = tf.data.Dataset.zip((val_in, val_out, val_in_color))
-
-            k_train = k_train.map(cp.load_images_test)
-            k_train = k_train.shuffle(total - group_size).batch(1)
-            k_test = k_test.map(cp.load_images_test)
-            k_test = k_test.shuffle(group_size).batch(1)
-
-            # next group
-            test_start += group_size
-            test_end += group_size
-
-            # Writers
-            self.writer_train = tf.summary.create_file_writer(f'../logs/c2st/{group}/train')
-            self.writer_val = tf.summary.create_file_writer(f'../logs/c2st/{group}/val')
-
-            self.fit(k_train)
-            self.validate(k_test)
-
     @staticmethod
     def build_discriminator(input_shape=None, initial_units=64, layers=4):
         if input_shape is None:
@@ -238,11 +188,9 @@ def kfold_cv(k=5):
         classifier.writer_train = tf.summary.create_file_writer(f'../logs/c2st/{group}/train')
         classifier.writer_val = tf.summary.create_file_writer(f'../logs/c2st/{group}/val')
 
-        classifier.fit(k_train)
+        classifier.fit(k_train, epochs=10)
         classifier.validate(k_test)
 
 
 if __name__ == '__main__':
-    # c2st = Classifier(path_generator='../trained_models/reconstructor.h5')
-    # c2st.kfold_cv(k=5)
     kfold_cv(5)
