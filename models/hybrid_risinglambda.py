@@ -51,9 +51,9 @@ class RaisingLamdba(HybridReconstuctor):
 if __name__ == '__main__':
     training_name = 'colors_all0_risinglambda300'
     temples = [f'temple_{x}' for x in range(1, 10)]
-    log_dir = f'..\\logs\\{training_name}'
+    logs = f'..\\logs\\{training_name}'
 
-    reconstructor = RaisingLamdba(log_dir=log_dir, lamda_f=300, autobuild=False)
+    reconstructor = RaisingLamdba(log_dir=logs, lamda_f=300, autobuild=False)
     reconstructor.build_generator(heads=2, inplace=True)
     reconstructor.build_discriminator(inplace=True)
 

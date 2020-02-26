@@ -52,16 +52,6 @@ def random_jitter(images):
     images = random_crop(images)
 
     if tf.random.uniform(()) > 0.5:
-        images[0] = tf.image.random_brightness(images[0], 0.3)
-        images[1] = tf.image.random_brightness(images[1], 0.3)
-    if tf.random.uniform(()) > 0.5:
-        images[0] = tf.image.random_contrast(images[0], 0.8, 1.2)
-        images[1] = tf.image.random_contrast(images[1], 0.8, 1.2)
-    if tf.random.uniform(()) > 0.5:
-        images[0] = tf.image.random_saturation(images[0], 0.8, 1.2)
-        images[1] = tf.image.random_saturation(images[1], 0.8, 1.2)
-
-    if tf.random.uniform(()) > 0.5:
         flipped_images = []
         for image in images:
             flipped_image = tf.image.flip_left_right(image)

@@ -169,8 +169,8 @@ class HybridReconstuctor(Pix2Pix):
 
 def main(training_name, temples):
     # TODO: standarise r and f
-    log_path = f'..\\logs\\{training_name}'
-    ds_path = r'..\dataset'
+    log_path = f'../logs/{training_name}'
+    ds_path = '../dataset'
     cp.RESIZE_FACTOR = 1.3
 
     reconstructor = HybridReconstuctor(log_dir=log_path, autobuild=False)
@@ -198,9 +198,3 @@ def predict_batch(target='temple_0', ruins=1):
     predict_ds = reconstructor.get_prediction_dataset(ruins, temples, colors)
 
     reconstructor.predict(predict_ds, log_path, samples='all')
-
-
-if __name__ == '__main__':
-    reconstructor = HybridReconstuctor(autobuild=False)
-    reconstructor.build_discriminator(input_shape=[512, 256, 3], initial_units=32, layers=5, inplace=True)
-    reconstructor.discriminator.summary()

@@ -5,6 +5,10 @@ import glob
 
 import tensorflow as tf
 from utils import pix2pix_preprocessing as preprocessing
+from utils import custom_preprocessing as cp
+
+# dataset
+from utils import dataset_creator as dc
 
 
 # Convenience functions
@@ -126,7 +130,7 @@ class Pix2Pix:
         """
         if time is None:
             time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-        log_path = f'{path}\\{time}\\{name}'
+        log_path = f'{path}/{time}/{name}'
         writer = tf.summary.create_file_writer(log_path)
         return writer
 
@@ -203,7 +207,7 @@ class Pix2Pix:
             self.generator = tf.keras.Model(inputs=input_layers, outputs=x)
         return tf.keras.Model(inputs=input_layers, outputs=x)
 
-    def build_discriminator(self, input_shape=None, initial_units=64, layers=4, inplace=True):
+    def build_discriminator(self, input_shape=None, initial_units=64, layers=4, inplace=False):
         if input_shape is None:
             input_shape = [None, None, 3]
 
@@ -255,8 +259,8 @@ class Pix2Pix:
         buffer_size = len(input_path)
 
         # This (and pix2pix_preprocessing) assume .png images will be used
-        input_path = glob.glob(input_path + r'\*.png')
-        output_path = glob.glob(output_path + r'\*.png')
+        input_path = glob.glob(input_path + '/*.png')
+        output_path = glob.glob(output_path + '/*.png')
 
         input_dataset = tf.data.Dataset.list_files(input_path, shuffle=file_shuffle)
         output_dataset = tf.data.Dataset.list_files(output_path, shuffle=file_shuffle)
@@ -270,9 +274,8 @@ class Pix2Pix:
         train_dataset = combined_dataset.take(train_size)
         validation_dataset = combined_dataset.skip(train_size)
 
-        train_dataset = train_dataset.map(preprocessing.load_images_train).shuffle(train_size).batch(batch_size)
-        validation_dataset = validation_dataset.map(preprocessing.load_images_test).shuffle(validation_size) \
-            .batch(batch_size)
+        train_dataset = train_dataset.map(cp.load_images_train).batch(batch_size)
+        validation_dataset = validation_dataset.map(cp.load_images_test).batch(batch_size)
 
         return train_dataset, validation_dataset
 
@@ -312,10 +315,9 @@ class Pix2Pix:
 
             self._metric_update(train_ds, test_ds, epoch)
 
-            if epoch % 10 == 0:
-                self._train_predict(train_ds, self.train_summary_writer, epoch, 'train')
-                if test_ds is not None:
-                    self._train_predict(test_ds, self.val_summary_writer, epoch, 'validation')
+            self._train_predict(train_ds, self.train_summary_writer, epoch, 'train')
+            if test_ds is not None:
+                self._train_predict(test_ds, self.val_summary_writer, epoch, 'validation')
 
     def _metric_update(self, train_ds, test_ds, epoch):
         if self.log_dir is not None:
@@ -403,5 +405,9 @@ class Pix2Pix:
 
 
 if __name__ == '__main__':
-    pix2pix = Pix2Pix(log_dir=r'..\logs\full_temple_train_pix2pix', autobuild=True)
+    pix2pix = Pix2Pix(log_dir='../logs/desegmentation_0_background', autobuild=True)
+    path_in = '../dataset/temp/background_colors'
+    path_out = '../dataset/temp/background_temple'
+    train, validation = pix2pix.get_dataset(path_in, path_out, split=0.3)
+    pix2pix.fit(train, validation, epochs=50)
 
