@@ -7,9 +7,6 @@ import tensorflow as tf
 from utils import pix2pix_preprocessing as preprocessing
 from utils import custom_preprocessing as cp
 
-# dataset
-from utils import dataset_creator as dc
-
 
 # Convenience functions
 def downsample(filters: int, size: int, apply_batchnorm=True):

@@ -20,8 +20,7 @@ def simple_dataset(input_path: str, output_path: str, split=0.25, batch_size=1, 
     dataset_output = tf.data.Dataset.from_tensor_slices(output_files)
     dataset = tf.data.Dataset.zip((dataset_input, dataset_output)).shuffle(shuffle_size)
 
-    validation = dataset.take(validation_size).map(cp.load_images_test).batch(batch_size)
-    train = dataset.skip(validation_size).map(cp.load_images_train).batch(batch_size)
+    train, validation = _split_dataset(dataset, validation_size, batch_size)
 
     return train, validation
 
@@ -43,12 +42,78 @@ def custom_dataset(temples: list, split=0.25, batch_size=1, repeat=1, img_format
         combined = tf.data.Dataset.zip((dataset_ruins, dataset_colors, dataset_temples))
         dataset_paths.append(combined)
 
+    train, validation = _concat_datasets(dataset_paths, validation_size, buffer_size, batch_size)
+
+    return train, validation
+
+
+def get_dataset_reconstruction(temples: list, split=0.25, batch_size=1, repeat=1, img_format='png', mode='real'):
+    buffer_size = len(temples) * images_per_temple * repeat
+    validation_size = round(buffer_size * split)
+
+    dataset_paths = []
+    for i, temple in enumerate(temples):
+        glob_pattern = f'/*{temple}*/*.{img_format}'
+
+        if mode == 'real':
+            dataset_in = tf.data.Dataset.list_files(path_temples_ruins + glob_pattern, shuffle=False)
+            dataset_out = tf.data.Dataset.list_files(path_temples + glob_pattern, shuffle=False)
+
+        elif mode == 'color':
+            dataset_in = tf.data.Dataset.list_files(path_temples_ruins_colors + glob_pattern, shuffle=False)
+            dataset_out = tf.data.Dataset.list_files(path_temples_colors + glob_pattern, shuffle=False)
+
+        else:
+            raise Exception('Unsupported method. Supported methods are real and color')
+
+        dataset_in = dataset_in.repeat(repeat)
+
+        combined = tf.data.Dataset.zip((dataset_in, dataset_out))
+        dataset_paths.append(combined)
+
+    train, validation = _concat_datasets(dataset_paths, validation_size, buffer_size, batch_size)
+
+    return train, validation
+
+
+def get_dataset_segmentation(temples: list, split=0.25, batch_size=11, img_format='png', repeat=1, inverse=False):
+    buffer_size = len(temples) * images_per_temple * repeat
+    validation_size = round(buffer_size * split)
+
+    file_patterns_colors = []
+    file_patterns_real = []
+    for temple in temples:
+        glob_pattern = f'/*{temple}*/*.{img_format}'
+        file_patterns_colors.append(path_temples_colors + glob_pattern)
+        file_patterns_colors.append(path_temples_ruins_colors + glob_pattern)
+        file_patterns_real.append(path_temples + glob_pattern)
+        file_patterns_real.append(path_temples_ruins + glob_pattern)
+
+    dataset_colors = tf.data.Dataset.list_files(file_patterns_colors, shuffle=False)
+    dataset_real = tf.data.Dataset.list_files(file_patterns_real, shuffle=False)
+
+    if not inverse:
+        dataset = tf.data.Dataset.zip((dataset_real, dataset_colors)).shuffle(buffer_size)
+    else:
+        dataset = tf.data.Dataset.zip((dataset_colors, dataset_real)).shuffle(buffer_size)
+
+    validation = dataset.take(validation_size).map(cp.load_images_test).batch(batch_size)
+    train = dataset.skip(validation_size).map(cp.load_images_train).batch(batch_size)
+
+    return train, validation
+
+
+def _concat_datasets(dataset_paths, validation_size, buffer_size, batch_size):
     dataset = dataset_paths[0]
     dataset_paths.pop(0)
     for single_dataset in dataset_paths:
         dataset = dataset.concatenate(single_dataset)
-
     dataset = dataset.shuffle(buffer_size)
+
+    return _split_dataset(dataset, validation_size, batch_size)
+
+
+def _split_dataset(dataset, validation_size, batch_size):
     validation = dataset.take(validation_size).map(cp.load_images_test).batch(batch_size)
     train = dataset.skip(validation_size).map(cp.load_images_train).batch(batch_size)
 
