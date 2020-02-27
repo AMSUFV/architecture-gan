@@ -6,6 +6,7 @@ import glob
 import tensorflow as tf
 from utils import pix2pix_preprocessing as preprocessing
 from utils import custom_preprocessing as cp
+from utils import dataset_creator
 
 
 # Convenience functions
@@ -402,9 +403,11 @@ class Pix2Pix:
 
 
 if __name__ == '__main__':
-    pix2pix = Pix2Pix(log_dir='../logs/desegmentation_0_background', autobuild=True)
-    path_in = '../dataset/temp/background_colors'
-    path_out = '../dataset/temp/background_temple'
-    train, validation = pix2pix.get_dataset(path_in, path_out, split=0.3)
+    pix2pix = Pix2Pix(log_dir='../logs/segmentation_all0', autobuild=True)
+
+    temples = [f'temple_{x}' for x in range(1, 10)]
+    train, validation = dataset_creator.get_dataset_segmentation(temples, repeat=2)
+
     pix2pix.fit(train, validation, epochs=50)
+    pix2pix.generator.save('../trained_models/segmenter.h5')
 

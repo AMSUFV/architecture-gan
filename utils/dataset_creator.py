@@ -76,7 +76,7 @@ def get_dataset_reconstruction(temples: list, split=0.25, batch_size=1, repeat=1
     return train, validation
 
 
-def get_dataset_segmentation(temples: list, split=0.25, batch_size=11, img_format='png', repeat=1, inverse=False):
+def get_dataset_segmentation(temples: list, split=0.25, batch_size=1, img_format='png', repeat=1, inverse=False):
     buffer_size = len(temples) * images_per_temple * repeat
     validation_size = round(buffer_size * split)
 
