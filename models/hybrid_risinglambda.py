@@ -50,7 +50,7 @@ class RaisingLamdba(HybridReconstuctor):
 
 
 if __name__ == '__main__':
-    training_name = 'colors_all0_risinglambda300'
+    training_name = 'colors_all-0_risinglambda300'
     temples = [f'temple_{x}' for x in range(1, 10)]
     logs = f'../logs/{training_name}'
 

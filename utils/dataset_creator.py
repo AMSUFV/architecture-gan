@@ -2,11 +2,23 @@ from utils import custom_preprocessing as cp
 import tensorflow as tf
 import glob
 
-path_temples = '../dataset/temples'
-path_temples_ruins = '../dataset/temples_ruins'
-path_temples_colors = '../dataset/colors_temples'
-path_temples_ruins_colors = '../dataset/colors_temples_ruins'
+path_temples = '/temples'
+path_temples_ruins = '/temples_ruins'
+path_temples_colors = '/colors_temples'
+path_temples_ruins_colors = '/colors_temples_ruins'
 images_per_temple = 300
+
+
+def setup_paths(path_dataset):
+    global path_temples
+    global path_temples_ruins
+    global path_temples_colors
+    global path_temples_ruins_colors
+
+    path_temples = path_dataset + path_temples
+    path_temples_ruins = path_dataset + path_temples_ruins
+    path_temples_colors = path_dataset + path_temples_colors
+    path_temples_ruins_colors = path_dataset + path_temples_ruins_colors
 
 
 def simple_dataset(input_path: str, output_path: str, split=0.25, batch_size=1, img_format='png'):

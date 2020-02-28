@@ -1,11 +1,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import datetime
-import glob
-
 import tensorflow as tf
-from utils import pix2pix_preprocessing as preprocessing
-from utils import custom_preprocessing as cp
 from utils import dataset_creator
 
 
