@@ -73,7 +73,7 @@ def main(training_name, temples):
     log_path = f'../logs/{training_name}'
     cp.RESIZE_FACTOR = 1.3
 
-    train, val = dataset_creator.custom_dataset(temples=temples, split=0.3, repeat=2)
+    train, val = dataset_creator.get_dataset_dual_input(temples=temples, split=0.3, repeat=2)
 
     reconstructor = HybridReconstuctor(log_dir=log_path, autobuild=False)
 

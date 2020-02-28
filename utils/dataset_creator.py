@@ -25,7 +25,7 @@ def simple_dataset(input_path: str, output_path: str, split=0.25, batch_size=1, 
     return train, validation
 
 
-def custom_dataset(temples: list, split=0.25, batch_size=1, repeat=1, img_format='png'):
+def get_dataset_dual_input(temples: list, split=0.25, batch_size=1, repeat=1, img_format='png'):
     buffer_size = len(temples) * images_per_temple * repeat
     validation_size = round(buffer_size * split)
 
@@ -48,6 +48,16 @@ def custom_dataset(temples: list, split=0.25, batch_size=1, repeat=1, img_format
 
 
 def get_dataset_reconstruction(temples: list, split=0.25, batch_size=1, repeat=1, img_format='png', mode='real'):
+    """Aimed at obtaining a reconstruction dataset
+
+    :param temples: list. Temple list.
+    :param split: float. Validation split.
+    :param batch_size: int. Batch size.
+    :param repeat: int. Ratio of ruins per temple.
+    :param img_format: string. Image format.
+    :param mode: string. Either real or color. Wheter or not to obtain a segmented version of the ruins.
+    :return: train, validation. Tensorflow datasets.
+    """
     buffer_size = len(temples) * images_per_temple * repeat
     validation_size = round(buffer_size * split)
 
@@ -97,8 +107,7 @@ def get_dataset_segmentation(temples: list, split=0.25, batch_size=1, img_format
     else:
         dataset = tf.data.Dataset.zip((dataset_colors, dataset_real)).shuffle(buffer_size)
 
-    validation = dataset.take(validation_size).map(cp.load_images_test).batch(batch_size)
-    train = dataset.skip(validation_size).map(cp.load_images_train).batch(batch_size)
+    train, validation = _split_dataset(dataset, validation_size, batch_size)
 
     return train, validation
 
@@ -114,7 +123,7 @@ def _concat_datasets(dataset_paths, validation_size, buffer_size, batch_size):
 
 
 def _split_dataset(dataset, validation_size, batch_size):
-    validation = dataset.take(validation_size).map(cp.load_images_test).batch(batch_size)
+    validation = dataset.take(validation_size).map(cp.load_images_val).batch(batch_size)
     train = dataset.skip(validation_size).map(cp.load_images_train).batch(batch_size)
 
     return train, validation
