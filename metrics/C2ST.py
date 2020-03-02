@@ -1,5 +1,5 @@
 import tensorflow as tf
-from models.pix2pix import downsample
+from models.pix 2pix import downsample
 from utils import custom_preprocessing as cp
 
 # validation
