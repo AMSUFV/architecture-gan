@@ -3,13 +3,13 @@ from models.hybrid_reconstuctor import HybridReconstuctor
 
 
 class RaisingLamdba(HybridReconstuctor):
-    def __init__(self, *, gen_path=None, disc_path=None, log_dir=None, autobuild=False, lamda_f=200):
-        super().__init__(gen_path=gen_path, disc_path=disc_path, log_dir=log_dir, autobuild=autobuild)
+    def __init__(self, lambda_i=100, lamda_f=200, **kwargs):
+        super().__init__(**kwargs)
 
         # Raising lambda
         # initial and final lambdas
-        self.lambda_i = 100
-        self.lambda_f = 200
+        self.lambda_i = lambda_i
+        self.lambda_f = lamda_f
         # current epoch and total epochs
         self.e_t = 0
         self.e_f = None
@@ -48,15 +48,3 @@ class RaisingLamdba(HybridReconstuctor):
                     self._train_predict(test_ds, self.val_summary_writer, epoch, 'validation')
 
 
-if __name__ == '__main__':
-    training_name = 'colors_all0_risinglambda300'
-    temples = [f'temple_{x}' for x in range(1, 10)]
-    logs = f'..\\logs\\{training_name}'
-
-    reconstructor = RaisingLamdba(log_dir=logs, lamda_f=300, autobuild=False)
-    reconstructor.build_generator(heads=2, inplace=True)
-    reconstructor.build_discriminator(inplace=True)
-
-    train, validation = reconstructor.get_dataset(temples=temples, split=0.25)
-    reconstructor.fit(train, validation, epochs=50)
-    tf.keras.models.save_model(reconstructor.generator, f'../trained_models/{training_name}.h5')

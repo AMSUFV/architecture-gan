@@ -6,7 +6,7 @@ IMG_HEIGHT = 384
 TGT_WIDTH = 512
 TGT_HEIGHT = 256
 
-RESIZE_FACTOR = 1.1
+RESIZE_FACTOR = 1.3
 
 
 def load_images_train(*paths):
@@ -16,7 +16,7 @@ def load_images_train(*paths):
     return images
 
 
-def load_images_test(*paths):
+def load_images_val(*paths):
     images = load(paths)
     images = resize(IMG_WIDTH, IMG_HEIGHT, images)
     images = central_crop(images)

@@ -126,7 +126,7 @@ class CustomPix2Pix(Pix2Pix):
         train = train_dataset.take(train_size).map(cp.load_images_train)
         train = train.shuffle(train_size, reshuffle_each_iteration=False).batch(1)
 
-        validation = train_dataset.skip(train_size).map(cp.load_images_test)
+        validation = train_dataset.skip(train_size).map(cp.load_images_val)
         validation = validation.shuffle(val_size, reshuffle_each_iteration=False).batch(1)
 
         return train, validation

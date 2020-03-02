@@ -1,14 +1,8 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import datetime
-import glob
-
 import tensorflow as tf
-from utils import pix2pix_preprocessing as preprocessing
-from utils import custom_preprocessing as cp
-
-# dataset
-from utils import dataset_creator as dc
+from utils import dataset_creator
 
 
 # Convenience functions
@@ -249,36 +243,6 @@ class Pix2Pix:
 
         return total_gen_loss
 
-    @staticmethod
-    def get_dataset(input_path, output_path, split=0.2, batch_size=1, file_shuffle=False, input_shape=None):
-        if input_shape is None:
-            input_shape = [512, 384]
-
-        preprocessing.IMG_WIDTH, preprocessing.IMG_HEIGHT = input_shape
-
-        buffer_size = len(input_path)
-
-        # This (and pix2pix_preprocessing) assume .png images will be used
-        input_path = glob.glob(input_path + '/*.png')
-        output_path = glob.glob(output_path + '/*.png')
-
-        input_dataset = tf.data.Dataset.list_files(input_path, shuffle=file_shuffle)
-        output_dataset = tf.data.Dataset.list_files(output_path, shuffle=file_shuffle)
-        combined_dataset = tf.data.Dataset.zip((input_dataset, output_dataset)).shuffle(buffer_size)
-
-        # train/validation split
-        # Assuming both lists (input and output path) are the same length
-        validation_size = round(buffer_size * split)
-        train_size = buffer_size - validation_size
-
-        train_dataset = combined_dataset.take(train_size)
-        validation_dataset = combined_dataset.skip(train_size)
-
-        train_dataset = train_dataset.map(cp.load_images_train).batch(batch_size)
-        validation_dataset = validation_dataset.map(cp.load_images_test).batch(batch_size)
-
-        return train_dataset, validation_dataset
-
     # Training functions
     @tf.function
     def train_step(self, train_x, train_y):
@@ -344,29 +308,6 @@ class Pix2Pix:
                 self.val_gen_acc(tf.zeros_like(disc_generated_output), disc_generated_output)
                 self.val_real_acc(tf.ones_like(disc_real_output), disc_real_output)
 
-    def predict(self, dataset, log_path, samples):
-        """Prediction method ment to be used outside of training.
-
-        :param dataset:
-        :param log_path:
-        :param samples:
-        :return:
-        """
-        writer = self._get_summary_writer(log_path, 'predict')
-        if samples == 'all':
-            target = dataset
-        else:
-            target = dataset.take(samples)
-
-        for x, y in target.take(samples):
-            prediction = self.generator(x, training=False)
-
-            stack = tf.stack([x, prediction, y], axis=0) * 0.5 + 0.5
-            stack = tf.squeeze(stack)
-
-            with writer.as_default():
-                tf.summary.image('predictions', stack)
-
     def _train_predict(self, dataset, writer, step: int, name='train'):
         """Method used during training to record the model's progress on image generation / translation tasks.
 
@@ -405,9 +346,12 @@ class Pix2Pix:
 
 
 if __name__ == '__main__':
-    pix2pix = Pix2Pix(log_dir='../logs/desegmentation_0_background', autobuild=True)
-    path_in = '../dataset/temp/background_colors'
-    path_out = '../dataset/temp/background_temple'
-    train, validation = pix2pix.get_dataset(path_in, path_out, split=0.3)
+    pix2pix = Pix2Pix(log_dir='../logs/colorsreconstruction_all0', autobuild=True)
+
+    temples = [f'temple_{x}' for x in range(1, 10)]
+    # train, validation = dataset_creator.get_dataset_segmentation(temples, repeat=2)
+    train, validation = dataset_creator.get_dataset_reconstruction(temples, repeat=2, mode='color')
+
     pix2pix.fit(train, validation, epochs=50)
+    pix2pix.generator.save('../trained_models/reconstructor_color_all-0.h5')
 

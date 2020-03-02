@@ -1,12 +1,7 @@
-import datetime
-import glob
-
-import numpy as np
 import tensorflow as tf
 from models.pix2pix import Pix2Pix
 from utils import custom_preprocessing as cp
 from utils import dataset_creator
-from PIL import Image
 
 
 class HybridReconstuctor(Pix2Pix):
@@ -78,14 +73,15 @@ def main(training_name, temples):
     log_path = f'../logs/{training_name}'
     cp.RESIZE_FACTOR = 1.3
 
-    train, val = dataset_creator.custom_dataset(temples=['temple_0'], split=0.3, repeat=2)
+    train, val = dataset_creator.get_dataset_dual_input(temples=temples, split=0.3, repeat=2)
 
     reconstructor = HybridReconstuctor(log_dir=log_path, autobuild=False)
+
     reconstructor.build_generator(heads=2, inplace=True)
-    reconstructor.build_discriminator(inplace=True)
+    reconstructor.build_discriminator()
 
     reconstructor.fit(train, val, epochs=10)
 
 
 if __name__ == '__main__':
-    main('test', ['temple_0'])
+    main(training_name='test', temples=['temple_0'])

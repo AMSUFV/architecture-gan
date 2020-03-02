@@ -1,6 +1,4 @@
 import tensorflow as tf
-import datetime
-from models.hybrid_reconstuctor import HybridReconstuctor
 from models.pix2pix import downsample
 from utils import custom_preprocessing as cp
 
@@ -22,7 +20,6 @@ class Classifier:
         self.loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
         # tensorboard
-        time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
         self.writer_train = None  # tf.summary.create_file_writer(f'../logs/c2st/{time}/train')
         self.writer_val = None  # tf.summary.create_file_writer(f'../logs/c2st/{time}/val')
         # metrics
@@ -175,9 +172,9 @@ def kfold_cv(k=5):
         k_train = tf.data.Dataset.zip((train_in, train_out, train_in_color))
         k_test = tf.data.Dataset.zip((val_in, val_out, val_in_color))
 
-        k_train = k_train.map(cp.load_images_test)
+        k_train = k_train.map(cp.load_images_val)
         k_train = k_train.shuffle(total - group_size).batch(1)
-        k_test = k_test.map(cp.load_images_test)
+        k_test = k_test.map(cp.load_images_val)
         k_test = k_test.shuffle(group_size).batch(1)
 
         # next group
