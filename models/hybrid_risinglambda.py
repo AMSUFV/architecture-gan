@@ -1,6 +1,5 @@
 import tensorflow as tf
 from models.hybrid_reconstuctor import HybridReconstuctor
-from utils import dataset_creator
 
 
 class RaisingLamdba(HybridReconstuctor):
@@ -49,16 +48,3 @@ class RaisingLamdba(HybridReconstuctor):
                     self._train_predict(test_ds, self.val_summary_writer, epoch, 'validation')
 
 
-if __name__ == '__main__':
-    training_name = 'colors_all-0_risinglambda300'
-    temples = [f'temple_{x}' for x in range(1, 10)]
-    logs = f'../logs/{training_name}'
-
-    reconstructor = RaisingLamdba(log_dir=logs, lamda_f=300, autobuild=False)
-    reconstructor.build_generator(heads=2, inplace=True)
-    reconstructor.build_discriminator(inplace=True)
-
-    train, validation = dataset_creator.get_dataset_dual_input(temples=temples, split=0.3, repeat=2)
-
-    reconstructor.fit(train, validation, epochs=50)
-    tf.keras.models.save_model(reconstructor.generator, f'../trained_models/{training_name}.h5')

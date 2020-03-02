@@ -41,7 +41,9 @@ dataset_creator.setup_paths(args.p)
 if args.model == 'pix2pix':
     model = Pix2Pix(log_dir=args.logdir, autobuild=True)
 elif args.model == 'hybrid':
-    model = HybridReconstuctor(log_dir=args.logdir, autobuild=True)
+    model = HybridReconstuctor(log_dir=args.logdir, autobuild=False)
+    model.build_generator(heads=2, inplace=True)
+    model.build_discriminator(inplace=True)
 else:
     raise Exception('Unsupported model.')
 
@@ -65,4 +67,4 @@ model.fit(train, validation, args.epochs)
 
 # naming
 model_name = f'{args.mode}_{args.model}'
-model.generator.save(f'{model_name}.h5')
+model.generator.save(f'./trained_models/{model_name}.h5')
