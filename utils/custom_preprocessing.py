@@ -83,3 +83,33 @@ def normalize(images):
         normalized_images.append(normalized_image)
 
     return normalized_images
+
+
+def load_images_mask_train(*paths):
+    images = load(paths)
+    images = create_mask(images)
+    images = random_jitter(images)
+    images = normalize(images)
+    return images
+
+
+def load_images_mask_val(*paths):
+    images = load(paths)
+    images = create_mask(images)
+    images = resize(IMG_WIDTH, IMG_HEIGHT, images)
+    images = central_crop(images)
+    images = normalize(images)
+    return images
+
+
+def create_mask(images):
+    # black pixels will add up to 0 (0, 0, 0)
+    added = tf.math.reduce_sum(images[1], 2)
+    mask = tf.math.equal(added, 0)
+    mask_colored = tf.where(tf.math.not_equal(mask, tf.zeros_like(mask)), 0, 255)
+    # mask_colored = tf.expand_dims(mask_colored, 2)
+    mask_colored = tf.cast(mask_colored, dtype='float32')
+    stack = tf.stack([mask_colored, mask_colored, mask_colored], axis=2)
+    images[1] = stack
+
+    return images

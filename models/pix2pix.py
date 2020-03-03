@@ -145,7 +145,7 @@ class Pix2Pix:
         else:
             return None
 
-    def build_generator(self, input_shape: list = None, heads=1, inplace=False):
+    def build_generator(self, input_shape: list = None, heads=1, inplace=False, out_dims=3):
         if input_shape is None:
             input_shape = [None, None, 3]
 
@@ -193,7 +193,7 @@ class Pix2Pix:
             x = tf.keras.layers.Concatenate()([x, skip])
 
         initializer = tf.random_normal_initializer(0., 0.02)
-        last = tf.keras.layers.Conv2DTranspose(3, 4, strides=2, padding='same',
+        last = tf.keras.layers.Conv2DTranspose(out_dims, 4, strides=2, padding='same',
                                                kernel_initializer=initializer, activation='tanh')
         x = last(x)
 
@@ -346,12 +346,13 @@ class Pix2Pix:
 
 
 if __name__ == '__main__':
-    pix2pix = Pix2Pix(log_dir='../logs/colorsreconstruction_all0', autobuild=True)
+    pix2pix = Pix2Pix(log_dir='../logs/masking_019', autobuild=True)
 
-    temples = [f'temple_{x}' for x in range(1, 10)]
+    temples = ['temple_0', 'temple_1', 'temple_9']
     # train, validation = dataset_creator.get_dataset_segmentation(temples, repeat=2)
-    train, validation = dataset_tool.get_dataset_reconstruction(temples, repeat=2, mode='color')
+    dataset_tool.setup_paths(path_dataset='../dataset')
+    train, validation = dataset_tool.get_dataset_segmentation(temples, repeat=2, mask=True, split=0.3)
 
-    pix2pix.fit(train, validation, epochs=50)
-    pix2pix.generator.save('../trained_models/reconstructor_color_all-0.h5')
+    pix2pix.fit(train, validation, epochs=15)
+    pix2pix.generator.save('../trained_models/masker_019.h5')
 

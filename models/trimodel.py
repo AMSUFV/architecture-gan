@@ -2,6 +2,7 @@ import tensorflow as tf
 from models.pix2pix import Pix2Pix
 from utils import dataset_tool
 
+
 class Trimodel:
     def __init__(self):
         model_source = Pix2Pix()
@@ -109,4 +110,3 @@ if __name__ == '__main__':
     dataset_tool.setup_paths('../dataset')
     train, validation = dataset_tool.get_dataset_dual_input(temples, split=0.3, repeat=2)
     trimodel.fit(train, validation, name='trimodel_1569')
-

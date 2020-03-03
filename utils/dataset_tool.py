@@ -104,7 +104,8 @@ def get_dataset_reconstruction(temples: list, split=0.25, batch_size=1, repeat=1
     return train, validation
 
 
-def get_dataset_segmentation(temples: list, split=0.25, batch_size=1, img_format='png', repeat=1, inverse=False):
+def get_dataset_segmentation(temples: list, split=0.25, batch_size=1, img_format='png', repeat=1, inverse=False,
+                             mask=False):
     buffer_size = len(temples) * images_per_temple * repeat
     validation_size = round(buffer_size * split)
 
@@ -125,9 +126,20 @@ def get_dataset_segmentation(temples: list, split=0.25, batch_size=1, img_format
     else:
         dataset = tf.data.Dataset.zip((dataset_colors, dataset_real)).shuffle(buffer_size)
 
-    train, validation = _split_dataset(dataset, validation_size, batch_size)
+    if mask:
+        train, validation = _mask_outputs(dataset, validation_size, batch_size)
+    else:
+        train, validation = _split_dataset(dataset, validation_size, batch_size)
 
     return train, validation
+
+
+def get_dataset_mask(temples: list, split=0.25, batch_size=1, img_format='png', repeat=1):
+    buffer_size = len(temples) * images_per_temple * repeat
+    validation_size = round(buffer_size * split)
+
+    for temple in temples:
+        glob_pattern = f'./*{temple}*/*.{img_format}'
 
 
 def _concat_datasets(dataset_paths, validation_size, buffer_size, batch_size):
@@ -143,5 +155,12 @@ def _concat_datasets(dataset_paths, validation_size, buffer_size, batch_size):
 def _split_dataset(dataset, validation_size, batch_size):
     validation = dataset.take(validation_size).map(cp.load_images_val).batch(batch_size)
     train = dataset.skip(validation_size).map(cp.load_images_train).batch(batch_size)
+
+    return train, validation
+
+
+def _mask_outputs(dataset, validation_size, batch_size):
+    validation = dataset.take(validation_size).map(cp.load_images_mask_val).batch(batch_size)
+    train = dataset.skip(validation_size).map(cp.load_images_mask_train).batch(batch_size)
 
     return train, validation
