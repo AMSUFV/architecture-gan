@@ -1,6 +1,6 @@
 import argparse
 import tensorflow as tf
-from utils import dataset_creator
+from utils import dataset_tool
 #
 # parser = argparse.ArgumentParser(description='Launch model prediction')
 #
@@ -13,10 +13,10 @@ segmenter = tf.keras.models.load_model('trained_models/segmenter.h5')
 reconstructor_color = tf.keras.models.load_model('trained_models/reconstruction_color_pix2pix.h5')
 hybrid = tf.keras.models.load_model('trained_models/colors_all0_risinglambda.h5')
 
-dataset_creator.setup_paths('dataset')
+dataset_tool.setup_paths('dataset')
 temple = 'temple_5'
 ruins = 'ruins_1'
-dataset = dataset_creator.get_dataset_prediction(f'dataset/temples_ruins/{temple}_{ruins}')
+dataset = dataset_tool.get_dataset_prediction(f'dataset/temples_ruins/{temple}_{ruins}')
 
 log_path = f'logs/predict/3models/{temple}_{ruins}'
 writer = tf.summary.create_file_writer(log_path)

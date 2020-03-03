@@ -65,30 +65,6 @@ def get_dataset_dual_input(temples: list, split=0.25, batch_size=1, repeat=1, im
     return train, validation
 
 
-def get_dataset_combined(temples: list, split=0.25, batch_size=1, repeat=1, img_format='png'):
-    buffer_size = len(temples) * images_per_temple * repeat
-    validation_size = round(buffer_size * split)
-
-    dataset_paths = []
-    for i, temple in enumerate(temples):
-        glob_pattern = f'/*{temple}*/*.{img_format}'
-
-        dataset_ruins = tf.data.Dataset.list_files(path_temples_ruins + glob_pattern, shuffle=False)
-        dataset_ruins_colors = tf.data.Dataset.list_files(path_temples_ruins_colors + glob_pattern, shuffle=False)
-        dataset_colors = tf.data.Dataset.list_files(path_temples_colors + glob_pattern, shuffle=False)
-        dataset_temples = tf.data.Dataset.list_files(path_temples + glob_pattern, shuffle=False)
-
-        dataset_colors = dataset_colors.repeat(repeat)
-        dataset_temples = dataset_temples.repeat(repeat)
-
-        combined = tf.data.Dataset.zip((dataset_ruins, dataset_colors, dataset_temples, dataset_ruins_colors))
-        dataset_paths.append(combined)
-
-    train, validation = _concat_datasets(dataset_paths, validation_size, buffer_size, batch_size)
-
-    return train, validation
-
-
 def get_dataset_reconstruction(temples: list, split=0.25, batch_size=1, repeat=1, img_format='png', mode='real'):
     """Aimed at obtaining a reconstruction dataset
 

@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import datetime
 import tensorflow as tf
-from utils import dataset_creator
+from utils import dataset_tool
 
 
 # Convenience functions
@@ -350,7 +350,7 @@ if __name__ == '__main__':
 
     temples = [f'temple_{x}' for x in range(1, 10)]
     # train, validation = dataset_creator.get_dataset_segmentation(temples, repeat=2)
-    train, validation = dataset_creator.get_dataset_reconstruction(temples, repeat=2, mode='color')
+    train, validation = dataset_tool.get_dataset_reconstruction(temples, repeat=2, mode='color')
 
     pix2pix.fit(train, validation, epochs=50)
     pix2pix.generator.save('../trained_models/reconstructor_color_all-0.h5')

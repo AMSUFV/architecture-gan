@@ -1,5 +1,5 @@
 import tensorflow as tf
-from models.pix 2pix import downsample
+from models.pix2pix import downsample
 from utils import custom_preprocessing as cp
 
 # validation
@@ -68,7 +68,7 @@ class Classifier:
     @tf.function
     def _step(self, ruin, temple, color):
         with tf.GradientTape(persistent=True) as tape:
-            gen_output = self.generator([ruin, color], training=False)
+            gen_output = self.generator(ruin, training=False)
 
             disc_real = self.discriminator([ruin, temple], training=True)
             disc_gen = self.discriminator([ruin, gen_output], training=True)
@@ -93,7 +93,7 @@ class Classifier:
 
     def validate(self, dataset_val):
         for step, (ruin, temple, color) in enumerate(dataset_val):
-            generated = self.generator([ruin, color], training=False)
+            generated = self.generator(ruin, training=False)
             disc_real = self.discriminator([ruin, temple], training=False)
             disc_fake = self.discriminator([ruin, generated], training=False)
 
@@ -118,7 +118,7 @@ class Classifier:
 
     def _image_matrix(self, writer, dataset, step):
         for ruin, temple, color in dataset.take(1):
-            reconstruction = self.generator([ruin, color], training=False)
+            reconstruction = self.generator(ruin, training=False)
 
             markov_rf_real = self.discriminator([ruin, temple], training=False)
             markov_rf_fake = self.discriminator([ruin, reconstruction], training=False)
@@ -153,7 +153,7 @@ def kfold_cv(k=5):
     test_start = 0
     test_end = group_size
     for group in range(k):
-        classifier = Classifier(path_generator='../trained_models/reconstructor.h5')
+        classifier = Classifier(path_generator='../trained_models/reconstructor_simple.h5')
         classifier.discriminator = classifier.build_discriminator()
 
         # Dataset obtention
@@ -182,8 +182,8 @@ def kfold_cv(k=5):
         test_end += group_size
 
         # Writers
-        classifier.writer_train = tf.summary.create_file_writer(f'../logs/c2st/{group}/train')
-        classifier.writer_val = tf.summary.create_file_writer(f'../logs/c2st/{group}/val')
+        classifier.writer_train = tf.summary.create_file_writer(f'../logs/c2st/direct_{group}/train')
+        classifier.writer_val = tf.summary.create_file_writer(f'../logs/c2st/direct_{group}/val')
 
         classifier.fit(k_train, epochs=10)
         classifier.validate(k_test)

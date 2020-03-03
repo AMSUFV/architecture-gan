@@ -1,5 +1,5 @@
 import argparse
-from utils import dataset_creator
+from utils import dataset_tool
 from models.pix2pix import Pix2Pix
 from models.hybrid_reconstuctor import HybridReconstuctor
 
@@ -36,7 +36,7 @@ parser.add_argument('-save', default=True, type=bool,
 args = parser.parse_args()
 
 temple_list = [f'temple_{x}' for x in args.temples]
-dataset_creator.setup_paths(args.p)
+dataset_tool.setup_paths(args.p)
 
 if args.model == 'pix2pix':
     model = Pix2Pix(log_dir=args.logdir, autobuild=True)
@@ -48,18 +48,18 @@ else:
     raise Exception('Unsupported model.')
 
 if args.mode == 'segmentation':
-    train, validation = dataset_creator.get_dataset_segmentation(temple_list, split=args.split, repeat=args.repeat)
+    train, validation = dataset_tool.get_dataset_segmentation(temple_list, split=args.split, repeat=args.repeat)
 elif args.mode == 'desegmentation':
-    train, validation = dataset_creator.get_dataset_segmentation(temple_list, split=args.split, repeat=args.repeat,
-                                                                 inverse=True)
+    train, validation = dataset_tool.get_dataset_segmentation(temple_list, split=args.split, repeat=args.repeat,
+                                                              inverse=True)
 elif args.mode == 'hybrid':
-    train, validation = dataset_creator.get_dataset_dual_input(temple_list, split=args.split, repeat=args.repeat)
+    train, validation = dataset_tool.get_dataset_dual_input(temple_list, split=args.split, repeat=args.repeat)
 elif 'color' in args.mode:
-    train, validation = dataset_creator.get_dataset_reconstruction(temple_list, split=args.split, mode='color',
-                                                                   repeat=args.repeat)
+    train, validation = dataset_tool.get_dataset_reconstruction(temple_list, split=args.split, mode='color',
+                                                                repeat=args.repeat)
 elif 'real' in args.mode:
-    train, validation = dataset_creator.get_dataset_reconstruction(temple_list, split=args.split, mode='real',
-                                                                   repeat=args.repeat)
+    train, validation = dataset_tool.get_dataset_reconstruction(temple_list, split=args.split, mode='real',
+                                                                repeat=args.repeat)
 else:
     raise Exception('Unsupported method. See -h for supported methods.')
 
