@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import datetime
 import tensorflow as tf
+from utils import dataset_tool
 
 
 def downsample(filters: int, size: int, apply_batchnorm=True):
@@ -134,10 +135,10 @@ def discriminator(input_shape=None, initial_units=64, layers=4):
 # ----------------------------------------------------------------------------------------------------------------------
 
 
-class Pix2pix:
+class Pix2Pix:
     def __init__(self, g_params=None, d_params=None):
         if g_params is None:
-            g_params = dict(input_shape=[None, None, 3], output_dims=3, heads=1)
+            g_params = dict(input_shape=[None, None, 3], out_dims=3, heads=1)
         if d_params is None:
             d_params = dict(input_shape=[None, None, 3])
 
@@ -155,58 +156,90 @@ class Pix2pix:
         return loss_total
 
     def _loss_g(self, d_g_x, **kwargs):
+        """Base generator loss function.
+
+        :param d_g_x: discriminator output for the generator's output.
+        :param kwargs: for the base class, accepted kwargs are y (expected output) and g_x (generator output)
+        :return: generator loss
+        """
         loss_d_g_x = self.loss_object(tf.ones_like(d_g_x), d_g_x)
         loss_l1 = tf.reduce_mean(tf.abs(kwargs['y'] - kwargs['g_x']))
         loss_total = loss_d_g_x + kwargs['multiplier'] * loss_l1
-        return loss_total
+        return loss_total, loss_l1
 
-    def _step(self, train_x, train_y, training=True, writer=None):
+    @tf.function()
+    def _step(self, train_x, train_y, training=True):
         with tf.GradientTape(persistent=True) as tape:
             g_x = self.generator(train_x, training=training)
 
             d_g_x = self.discriminator([train_x, g_x], training=training)
             d_y = self.discriminator([train_x, train_y], training=training)
 
-            g_loss = self._loss_g(d_g_x, y=train_y, g_x=g_x, multiplier=100)
+            g_loss, l1_loss = self._loss_g(d_g_x, y=train_y, g_x=g_x, multiplier=100)
             d_loss = self._loss_d(d_y, d_g_x)
 
         if training:
-            gradients_g = tape.gradient(g_loss, self.generator.trainable_variables)
-            gradients_d = tape.gradient(d_loss, self.discriminator.trainable_variables)
+            self._gradient_update(tape, g_loss, self.generator, self.optimizer_g)
+            self._gradient_update(tape, d_loss, self.discriminator, self.optimizer_d)
+            # gradients_g = tape.gradient(g_loss, self.generator.trainable_variables)
+            # gradients_d = tape.gradient(d_loss, self.discriminator.trainable_variables)
+            # self.optimizer_g.apply_gradients(zip(gradients_g, self.generator.trainable_variables))
+            # self.optimizer_d.apply_gradients(zip(gradients_d, self.discriminator.trainable_variables))
 
-            self.optimizer_g.apply_gradients(zip(gradients_g, self.generator.trainable_variables))
-            self.optimizer_d.apply_gradients(zip(gradients_d, self.discriminator.trainable_variables))
+        metrics_names = ['loss_gen_total', 'loss_gen_l1', 'loss_disc']
+        metrics = [g_loss, l1_loss, d_loss]
+        return metrics_names, metrics
 
-        # if writer is not None:
-        #     with writer.as_default():
+    @staticmethod
+    def _gradient_update(tape, loss, model, optimizer):
+        gradients = tape.gradient(loss, model.trainable_variables)
+        optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+    @staticmethod
+    def _write_metrics(writer, metrics_names, metrics, epoch):
+        if writer is not None:
+            with writer.as_default():
+                for name, metric in zip(metrics_names, metrics):
+                    tf.summary.scalar(name, metric.result(), epoch)
 
     def fit(self, train, validation, epochs=1, log_dir=None):
         writer_train, writer_val = None, None
+        metrics_names, metrics = None, None
         if log_dir is not None:
-            writer_train, writer_val = self._get_logdir(log_dir)
+            writer_train, writer_val = self._get_writers(log_dir)
 
         for epoch in range(epochs):
             for train_x, train_y in train:
-                self._step(train_x, train_y, training=True)
+                metrics_names, metrics = self._step(train_x, train_y, training=True)
+            # self._write_metrics(writer_train, metrics_names, metrics, epoch)
+            self._log_images(train, writer_train, epoch)
+
             for val_x, val_y in validation:
                 self._step(val_x, val_y, training=False)
-
-            if log_dir is not None:
-                self._log_images(train, writer_train, epoch)
+            # self._write_metrics(writer_val, metrics_names, metrics, epoch)
+            self._log_images(validation, writer_val, epoch)
 
     def _log_images(self, dataset, writer, epoch):
-        x = next(dataset.take(1).__iter__())
-        g_x = self.generator(x, training=False)
-        stack = tf.stack([x, g_x], axis=0) * 0.5 + 0.5
-        stack = tf.squeeze(stack)
-        with writer.as_default():
-            tf.summary.image('prediction', stack, step=epoch, max_outputs=2)
+        if writer is not None:
+            x, _ = next(dataset.take(1).__iter__())
+            g_x = self.generator(x, training=False)
+            stack = tf.stack([x, g_x], axis=0) * 0.5 + 0.5
+            stack = tf.squeeze(stack)
+            with writer.as_default():
+                tf.summary.image('prediction', stack, step=epoch, max_outputs=2)
 
     @staticmethod
-    def _get_logdir(log_dir):
+    def _get_writers(log_dir):
         time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
         log_path = f'{log_dir}/{time}/'
         writer_train = tf.summary.create_file_writer(log_path + 'train')
         writer_val = tf.summary.create_file_writer(log_path + 'validation')
 
         return writer_train, writer_val
+
+
+if __name__ == '__main__':
+    dataset_tool.setup_paths('../dataset')
+    train_ds, val_ds = dataset_tool.get_dataset_segmentation(['temple_0'], repeat=2)
+    pix2pix = Pix2Pix()
+    pix2pix.fit(train_ds, val_ds, epochs=10, log_dir='../logs/test')
