@@ -134,14 +134,6 @@ def get_dataset_segmentation(temples: list, split=0.25, batch_size=1, img_format
     return train, validation
 
 
-def get_dataset_mask(temples: list, split=0.25, batch_size=1, img_format='png', repeat=1):
-    buffer_size = len(temples) * images_per_temple * repeat
-    validation_size = round(buffer_size * split)
-
-    for temple in temples:
-        glob_pattern = f'./*{temple}*/*.{img_format}'
-
-
 def _concat_datasets(dataset_paths, validation_size, buffer_size, batch_size):
     dataset = dataset_paths[0]
     dataset_paths.pop(0)

@@ -53,7 +53,7 @@ def upsample(filters: int, size: int, apply_dropout=False):
     return result
 
 
-def generator(input_shape: list = None, heads=1, out_dims=3):
+def generator(input_shape: list = None, heads=1, out_dims=3, activation='tanh'):
     if input_shape is None:
         input_shape = [None, None, 3]
 
@@ -102,7 +102,7 @@ def generator(input_shape: list = None, heads=1, out_dims=3):
 
     initializer = tf.random_normal_initializer(0., 0.02)
     last = tf.keras.layers.Conv2DTranspose(out_dims, 4, strides=2, padding='same',
-                                           kernel_initializer=initializer, activation='tanh')
+                                           kernel_initializer=initializer, activation=activation)
     x = last(x)
 
     return tf.keras.Model(inputs=input_layers, outputs=x)
@@ -136,14 +136,15 @@ def discriminator(input_shape=None, initial_units=64, layers=4):
 
 
 class Pix2Pix:
-    def __init__(self, g_params=None, d_params=None):
-        if g_params is None:
-            g_params = dict(input_shape=[None, None, 3], out_dims=3, heads=1)
-        if d_params is None:
-            d_params = dict(input_shape=[None, None, 3])
-
-        self.generator = generator(g_params['input_shape'], g_params['heads'], g_params['out_dims'])
-        self.discriminator = discriminator(input_shape=d_params['input_shape'])
+    def __init__(self, gen=None, disc=None):
+        if gen is None:
+            self.generator = generator()
+        else:
+            self.generator = gen
+        if disc is None:
+            self.discriminator = discriminator()
+        else:
+            self.discriminator = disc
 
         self.loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True)
         self.optimizer_g = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
@@ -168,7 +169,7 @@ class Pix2Pix:
         return loss_total, loss_l1
 
     @tf.function()
-    def _step(self, train_x, train_y, training=True):
+    def _step(self, train_x, train_y, epoch, training=True, writer=None):
         with tf.GradientTape(persistent=True) as tape:
             g_x = self.generator(train_x, training=training)
 
@@ -181,14 +182,12 @@ class Pix2Pix:
         if training:
             self._gradient_update(tape, g_loss, self.generator, self.optimizer_g)
             self._gradient_update(tape, d_loss, self.discriminator, self.optimizer_d)
-            # gradients_g = tape.gradient(g_loss, self.generator.trainable_variables)
-            # gradients_d = tape.gradient(d_loss, self.discriminator.trainable_variables)
-            # self.optimizer_g.apply_gradients(zip(gradients_g, self.generator.trainable_variables))
-            # self.optimizer_d.apply_gradients(zip(gradients_d, self.discriminator.trainable_variables))
 
-        metrics_names = ['loss_gen_total', 'loss_gen_l1', 'loss_disc']
-        metrics = [g_loss, l1_loss, d_loss]
-        return metrics_names, metrics
+        if writer is not None:
+            with writer.as_default():
+                tf.summary.scalar('g_loss', g_loss, step=epoch)
+                tf.summary.scalar('g_loss_l1', l1_loss, step=epoch)
+                tf.summary.scalar('d_loss', d_loss, step=epoch)
 
     @staticmethod
     def _gradient_update(tape, loss, model, optimizer):
@@ -200,23 +199,20 @@ class Pix2Pix:
         if writer is not None:
             with writer.as_default():
                 for name, metric in zip(metrics_names, metrics):
-                    tf.summary.scalar(name, metric.result(), epoch)
+                    tf.summary.scalar(name, metric, step=epoch)
 
     def fit(self, train, validation, epochs=1, log_dir=None):
         writer_train, writer_val = None, None
-        metrics_names, metrics = None, None
         if log_dir is not None:
             writer_train, writer_val = self._get_writers(log_dir)
 
         for epoch in range(epochs):
             for train_x, train_y in train:
-                metrics_names, metrics = self._step(train_x, train_y, training=True)
-            # self._write_metrics(writer_train, metrics_names, metrics, epoch)
+                self._step(train_x, train_y, epoch, training=True, writer=writer_train)
             self._log_images(train, writer_train, epoch)
 
             for val_x, val_y in validation:
-                self._step(val_x, val_y, training=False)
-            # self._write_metrics(writer_val, metrics_names, metrics, epoch)
+                self._step(val_x, val_y, epoch, training=False, writer=writer_val)
             self._log_images(validation, writer_val, epoch)
 
     def _log_images(self, dataset, writer, epoch):
@@ -236,10 +232,3 @@ class Pix2Pix:
         writer_val = tf.summary.create_file_writer(log_path + 'validation')
 
         return writer_train, writer_val
-
-
-if __name__ == '__main__':
-    dataset_tool.setup_paths('../dataset')
-    train_ds, val_ds = dataset_tool.get_dataset_segmentation(['temple_0'], repeat=2)
-    pix2pix = Pix2Pix()
-    pix2pix.fit(train_ds, val_ds, epochs=10, log_dir='../logs/test')
