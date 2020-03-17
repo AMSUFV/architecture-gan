@@ -4,7 +4,7 @@ from utils import custom_preprocessing as cp
 from utils import dataset_tool
 
 
-class HybridReconstuctor(Pix2Pix):
+class HybridReconstructor(Pix2Pix):
     @tf.function
     def train_step(self, ruin, color, temple):
         with tf.GradientTape(persistent=True) as tape:
@@ -75,7 +75,7 @@ def main(training_name, temples):
 
     train, val = dataset_tool.get_dataset_dual_input(temples=temples, split=0.3, repeat=2)
 
-    reconstructor = HybridReconstuctor(log_dir=log_path, autobuild=False)
+    reconstructor = HybridReconstructor(log_dir=log_path, autobuild=False)
 
     reconstructor.build_generator(heads=2, inplace=True)
     reconstructor.build_discriminator()

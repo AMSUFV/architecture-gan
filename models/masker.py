@@ -39,7 +39,7 @@ class MaskReconstructor(pix.Pix2Pix):
     #     loss_diff = kwargs['multiplier'] * tf.abs(1 - tf.reduce_sum(kwargs['y']) / tf.reduce_sum(kwargs['g_x']))
     #     loss_total = loss_d_g_x + loss_diff
     #     return loss_total, loss_diff
-    # todo: implementar loss de de area
+    # todo: implement area loss
     
     def fit(self, train, validation, epochs=1, log_dir=None):
         writer_train, writer_val = None, None

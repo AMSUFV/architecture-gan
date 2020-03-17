@@ -11,7 +11,7 @@ def downsample(filters: int, size: int, apply_batchnorm=True):
 
     :param filters: int. Determines the number of filters in the Conv2D layer.
     :param size: int. Determines the size of said filters.
-    :param apply_batchnorm: Wether or not to apply a BatchNormalization layer to the activations.
+    :param apply_batchnorm: Whether or not to apply a BatchNormalization layer to the activations.
     :return: A sequential model consisting of a Conv2D, an optional BatchNormalization and a LeakyReLU
     """
     initializer = tf.random_normal_initializer(0., 0.02)
@@ -30,7 +30,7 @@ def downsample(filters: int, size: int, apply_batchnorm=True):
 
 def upsample(filters: int, size: int, apply_dropout=False):
     """Convenience function for the creation of an umpsampling block made of a Transposed 2D Convolutional layer,
-    a Batch Normalization layer, an optional Droput layer and a Leaky ReLU activation function.
+    a Batch Normalization layer, an optional Dropout layer and a Leaky ReLU activation function.
 
     :param filters: int. Determines the number of filters in the Conv2DTranspose layer.
     :param size: int. Determines the size of said filters.

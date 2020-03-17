@@ -1,7 +1,7 @@
 import argparse
 from utils import dataset_tool
 from models.pix2pix import Pix2Pix
-from models.hybrid_reconstuctor import HybridReconstuctor
+from models.hybrid_reconstuctor import HybridReconstructor
 
 parser = argparse.ArgumentParser(description='Launch model training')
 
@@ -41,7 +41,7 @@ dataset_tool.setup_paths(args.p)
 if args.model == 'pix2pix':
     model = Pix2Pix(log_dir=args.logdir, autobuild=True)
 elif args.model == 'hybrid':
-    model = HybridReconstuctor(log_dir=args.logdir, autobuild=False)
+    model = HybridReconstructor(log_dir=args.logdir, autobuild=False)
     model.build_generator(heads=2, inplace=True)
     model.build_discriminator(inplace=True)
 else:

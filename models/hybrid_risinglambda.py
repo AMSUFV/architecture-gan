@@ -1,15 +1,15 @@
 import tensorflow as tf
-from models.hybrid_reconstuctor import HybridReconstuctor
+from models.hybrid_reconstuctor import HybridReconstructor
 
 
-class RaisingLamdba(HybridReconstuctor):
-    def __init__(self, lambda_i=100, lamda_f=200, **kwargs):
+class RaisingLamdba(HybridReconstructor):
+    def __init__(self, lambda_i=100, lambda_f=200, **kwargs):
         super().__init__(**kwargs)
 
         # Raising lambda
         # initial and final lambdas
         self.lambda_i = lambda_i
-        self.lambda_f = lamda_f
+        self.lambda_f = lambda_f
         # current epoch and total epochs
         self.e_t = 0
         self.e_f = None
