@@ -9,4 +9,4 @@ scratch*
 *.skp
 *.v2
 /other/
-/notebooks/
+notebooks/*
