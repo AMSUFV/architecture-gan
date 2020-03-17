@@ -2,7 +2,36 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import datetime
 import tensorflow as tf
-from utils import dataset_tool
+
+
+class InstanceNormalization(tf.keras.layers.Layer):
+    def __init__(self, epsilon=1e-5, **kwargs):
+        super().__init__(**kwargs)
+        self.epsilon = epsilon
+        self.scale = None
+        self.offset = None
+
+    def build(self, input_shape):
+        self.scale = self.add_weight(
+            name='scale',
+            shape=input_shape[-1:],
+            initializer=tf.random_normal_initializer(1., 0.02),
+            trainable=True
+        )
+
+        self.offset = self.add_weight(
+            name='offset',
+            shape=input_shape[-1:],
+            initializer='zeros',
+            trainable=True
+        )
+
+    def call(self, x, **kwargs):
+        mean, variance = tf.nn.moments(x, axes=[1, 2], keepdims=True)
+        inv = tf.math.sqrt(variance + self.epsilon)
+        normalized = (x - mean) * inv
+        return self.scale * normalized + self.offset
+
 
 
 def downsample(filters: int, size: int, apply_batchnorm=True):
