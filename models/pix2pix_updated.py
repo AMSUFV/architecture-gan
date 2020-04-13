@@ -33,14 +33,14 @@ class InstanceNormalization(tf.keras.layers.Layer):
         return self.scale * normalized + self.offset
 
 
-
-def downsample(filters: int, size: int, apply_batchnorm=True):
+def downsample(filters: int, size: int, apply_norm=True, norm_type='batchnorm'):
     """Convenience function for the creation of a downsampling block made of a 2D Convolutional layer, an optional
-    Batch Normalization layer and a Leaky ReLU activation function.
+    Batch Normalization or Instance Normalization layer and a Leaky ReLU activation function.
 
     :param filters: int. Determines the number of filters in the Conv2D layer.
     :param size: int. Determines the size of said filters.
-    :param apply_batchnorm: Whether or not to apply a BatchNormalization layer to the activations.
+    :param apply_norm: Whether or not to apply a BatchNormalization layer to the activations.
+    :param norm_type: Normalization to apply. Either batchnorm or instancenorm.
     :return: A sequential model consisting of a Conv2D, an optional BatchNormalization and a LeakyReLU
     """
     initializer = tf.random_normal_initializer(0., 0.02)
@@ -49,21 +49,25 @@ def downsample(filters: int, size: int, apply_batchnorm=True):
     result.add(tf.keras.layers.Conv2D(filters, size, strides=2, padding='same',
                                       kernel_initializer=initializer, use_bias=False))
 
-    if apply_batchnorm:
-        result.add(tf.keras.layers.BatchNormalization())
+    if apply_norm:
+        if norm_type == 'batchnorm':
+            result.add(tf.keras.layers.BatchNormalization())
+        elif norm_type == 'instancenorm':
+            result.add(InstanceNormalization())
 
     result.add(tf.keras.layers.LeakyReLU())
 
     return result
 
 
-def upsample(filters: int, size: int, apply_dropout=False):
+def upsample(filters: int, size: int, apply_dropout=False, norm_type='batchnorm'):
     """Convenience function for the creation of an umpsampling block made of a Transposed 2D Convolutional layer,
     a Batch Normalization layer, an optional Dropout layer and a Leaky ReLU activation function.
 
     :param filters: int. Determines the number of filters in the Conv2DTranspose layer.
     :param size: int. Determines the size of said filters.
-    :param apply_dropout: Wether or not to apply a Dropout to the activations.
+    :param apply_dropout: Whether or not to apply a Dropout to the activations.
+    :param norm_type: Normalization to apply. Either batchnorm or instancenorm.
     :return: A sequential model consisting of a Conv2D, an optional BatchNormalization and a LeakyReLU
     """
     initializer = tf.random_normal_initializer(0., 0.02)
@@ -72,7 +76,10 @@ def upsample(filters: int, size: int, apply_dropout=False):
     result.add(tf.keras.layers.Conv2DTranspose(filters, size, strides=2, padding='same',
                                                kernel_initializer=initializer, use_bias=False))
 
-    result.add(tf.keras.layers.BatchNormalization())
+    if norm_type == 'batchnorm':
+        result.add(tf.keras.layers.BatchNormalization())
+    elif norm_type == 'instancenorm':
+        result.add(InstanceNormalization())
 
     if apply_dropout:
         result.add(tf.keras.layers.Dropout(0.5))
@@ -87,7 +94,7 @@ def generator(input_shape: list = None, heads=1, out_dims=3, activation='tanh'):
         input_shape = [None, None, 3]
 
     down_stack = [
-        downsample(64, 4, apply_batchnorm=False),
+        downsample(64, 4, apply_norm=False),
         downsample(128, 4),
         downsample(256, 4),
         downsample(512, 4),
@@ -147,15 +154,15 @@ def discriminator(input_shape=None, initial_units=64, layers=4):
     target_image = tf.keras.layers.Input(shape=input_shape, name='target_image')
     x = tf.keras.layers.concatenate([inp, target_image])
 
-    multipliyer = 1
+    multiplier = 1
     for layer in range(layers):
         if layer == 1:
-            x = downsample(initial_units * multipliyer, 4, apply_batchnorm=False)(x)
-            multipliyer *= 2
+            x = downsample(initial_units * multiplier, 4, apply_norm=False)(x)
+            multiplier *= 2
         else:
-            x = downsample(initial_units * multipliyer, 4)(x)
-            if multipliyer < 8:
-                multipliyer *= 2
+            x = downsample(initial_units * multiplier, 4)(x)
+            if multiplier < 8:
+                multiplier *= 2
 
     last = tf.keras.layers.Conv2D(1, 4, strides=1, kernel_initializer=initializer, activation='sigmoid')(x)
 
@@ -197,7 +204,7 @@ class Pix2Pix:
         loss_total = loss_d_g_x + kwargs['multiplier'] * loss_l1
         return loss_total, loss_l1
 
-    @tf.function()
+    @tf.function
     def _step(self, train_x, train_y, epoch, training=True, writer=None):
         with tf.GradientTape(persistent=True) as tape:
             g_x = self.generator(train_x, training=training)
