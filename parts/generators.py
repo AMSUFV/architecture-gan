@@ -3,7 +3,7 @@ import tensorflow_addons as tfa
 
 
 # TODO: add reflection padding
-def resnet_generator():
+def resnet():
     """CycleGAN implementation https://arxiv.org/abs/1703.10593
 
     Per the paper's appendix:
@@ -85,9 +85,3 @@ def resnet_generator():
 
     return tf.keras.Model(inputs=inputs, outputs=x)
 
-
-if __name__ == '__main__':
-    image = tf.random.normal([1, 256, 256, 3])
-    generator = resnet_generator()
-    output = generator(image)
-    print(output.shape)
