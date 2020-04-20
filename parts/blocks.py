@@ -2,6 +2,7 @@ import tensorflow as tf
 import tensorflow_addons as tfa
 
 
+# TODO add comments
 def downsample(x, filters, kernel_size, strides=2, apply_norm=True, norm_type='batchnorm'):
     initializer = tf.random_normal_initializer(0., 0.02)
 
@@ -20,7 +21,7 @@ def downsample(x, filters, kernel_size, strides=2, apply_norm=True, norm_type='b
     return x
 
 
-def upsample(x, filters, kernel_size, strides, apply_dropout=False, norm_type='batchnorm'):
+def upsample(x, filters, kernel_size, strides=2, apply_dropout=False, norm_type='batchnorm'):
     initializer = tf.random_normal_initializer(0., 0.02)
 
     x = tf.keras.layers.Conv2DTranspose(filters=filters, kernel_size=kernel_size, strides=strides,

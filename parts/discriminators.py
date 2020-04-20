@@ -25,16 +25,3 @@ def pix2pix(input_shape=None, initial_units=64, layers=4, norm_type='batchnorm')
     last = tf.keras.layers.Conv2D(1, 4, strides=1, kernel_initializer=initializer, activation='sigmoid')(x)
 
     return tf.keras.Model(inputs=[inp, target_image], outputs=last)
-
-
-if __name__ == '__main__':
-    width = height = 512
-    batch_size = 1
-    channels = 3
-
-    discriminator = pix2pix([width, height, channels])
-
-    image = tf.random.normal([batch_size, width, height, channels])
-
-    prediction = discriminator([image, image])
-    print(prediction.shape)

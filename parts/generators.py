@@ -1,6 +1,8 @@
 import tensorflow as tf
 import tensorflow_addons as tfa
 
+from parts.blocks import downsample, upsample
+
 
 # TODO: add reflection padding
 def resnet():
@@ -85,3 +87,58 @@ def resnet():
 
     return tf.keras.Model(inputs=inputs, outputs=x)
 
+
+def pix2pix(input_shape=None, heads=1, out_dims=3, activation='tanh'):
+    if input_shape is None:
+        input_shape = [None, None, 3]
+
+    down_stack = [
+        dict(filters=64, kernel_size=4, apply_norm=False),
+        dict(filters=128, kernel_size=4, apply_norm=True),
+        dict(filters=256, kernel_size=4, apply_norm=True),
+        dict(filters=512, kernel_size=4, apply_norm=True),
+        dict(filters=512, kernel_size=4, apply_norm=True),
+        dict(filters=512, kernel_size=4, apply_norm=True),
+        dict(filters=512, kernel_size=4, apply_norm=True),
+        dict(filters=512, kernel_size=4, apply_norm=True),
+    ]
+
+    up_stack = [
+        dict(filters=512, kernel_size=4, apply_dropout=True),
+        dict(filters=512, kernel_size=4, apply_dropout=True),
+        dict(filters=512, kernel_size=4, apply_dropout=True),
+        dict(filters=512, kernel_size=4, apply_dropout=False),
+        dict(filters=256, kernel_size=4, apply_dropout=False),
+        dict(filters=128, kernel_size=4, apply_dropout=False),
+        dict(filters=64, kernel_size=4, apply_dropout=False),
+    ]
+    x = inputs = tf.keras.layers.Input(input_shape)
+
+    input_layers = []
+    for n in range(heads):
+        input_layers.append(tf.keras.layers.Input(shape=input_shape))
+
+    if heads > 1:
+        x = tf.keras.layers.concatenate(input_layers)
+    else:
+        x = input_layers[0]
+
+    # downsampling
+    skips = []
+    for down in down_stack:
+        x = downsample(x, down['filters'], down['kernel_size'], apply_norm=down['apply_norm'])
+        skips.append(x)
+
+    skips = reversed(skips[:-1])
+
+    # upsampling and connecting
+    for up, skip in zip(up_stack, skips):
+        x = upsample(x, up['filters'], up['kernel_size'], apply_dropout=up['apply_dropout'])
+        x = tf.keras.layers.Concatenate()([x, skip])
+
+    initializer = tf.random_normal_initializer(0., 0.02)
+    last = tf.keras.layers.Conv2DTranspose(out_dims, 4, strides=2, padding='same',
+                                           kernel_initializer=initializer, activation=activation)
+    x = last(x)
+
+    return tf.keras.Model(inputs=input_layers, outputs=x)
