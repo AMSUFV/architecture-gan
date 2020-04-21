@@ -90,7 +90,7 @@ def resnet():
 
 def pix2pix(input_shape=None, heads=1, out_dims=3, activation='tanh'):
     if input_shape is None:
-        input_shape = [None, None, 3]
+        input_shape = (None, None, 3)
 
     down_stack = [
         dict(filters=64, kernel_size=4, apply_norm=False),
@@ -112,7 +112,6 @@ def pix2pix(input_shape=None, heads=1, out_dims=3, activation='tanh'):
         dict(filters=128, kernel_size=4, apply_dropout=False),
         dict(filters=64, kernel_size=4, apply_dropout=False),
     ]
-    x = inputs = tf.keras.layers.Input(input_shape)
 
     input_layers = []
     for n in range(heads):
