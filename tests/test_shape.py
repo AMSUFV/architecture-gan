@@ -9,7 +9,7 @@ class TestShape(unittest.TestCase):
         self.image = random.normal((self.batch_size, 512, 512, 3))
 
     def test_pix2pix_disc(self):
-        disc = discriminators.pix2pix(input_shape=self.image.shape[1:])
+        disc = discriminators.patch(input_shape=self.image.shape[1:])
         prediction = disc([self.image, self.image])
 
         shape = list(prediction.shape)

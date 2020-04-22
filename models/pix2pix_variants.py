@@ -1,20 +1,27 @@
 import tensorflow as tf
 
-from parts.discriminators import pix2pix as discriminator
+from parts.discriminators import patch as discriminator
 from parts.generators import pix2pix as generator
 from parts import losses
 import utils
 
 
 class Pix2Pix:
-    def __init__(self, input_shape=(512, 512, 3)):
-        self.discriminator = discriminator()
-        self.generator = generator(input_shape=input_shape)
+    def __init__(self, input_shape=(512, 512, 3), norm_type='batchnorm'):
+        self.discriminator = discriminator(norm_type=norm_type)
+        self.generator = generator(input_shape=input_shape, norm_type=norm_type)
         self.loss_d, self.loss_g = losses.pix2pix()
         self.g_optimizer = self.d_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
 
     def __call__(self, image):
         return self.generator(image, training=False)
+
+    def summary(self, to_file=False):
+        self.generator.summary()
+        self.discriminator.summary()
+        if to_file:
+            tf.keras.utils.plot_model(self.generator, to_file='generator.png')
+            tf.keras.utils.plot_model(self.discriminator, to_file='discriminator.png')
 
     @tf.function
     def train_g(self, x, y):

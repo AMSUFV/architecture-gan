@@ -84,29 +84,30 @@ def resnet(input_shape=(512, 512, 3), dim=64, downsamplings=2, res_blocks=9):
     return tf.keras.Model(inputs=inputs, outputs=x)
 
 
-def pix2pix(input_shape=None, heads=1, out_dims=3, activation='tanh'):
+def pix2pix(input_shape=None, heads=1, dim=64, down_blocks=8, downsamplings=4, norm_type='batchnorm', activation='tanh'):
+
     if input_shape is None:
         input_shape = (None, None, 3)
 
     down_stack = [
         dict(filters=64, kernel_size=4, apply_norm=False),
-        dict(filters=128, kernel_size=4, apply_norm=True),
-        dict(filters=256, kernel_size=4, apply_norm=True),
-        dict(filters=512, kernel_size=4, apply_norm=True),
-        dict(filters=512, kernel_size=4, apply_norm=True),
-        dict(filters=512, kernel_size=4, apply_norm=True),
-        dict(filters=512, kernel_size=4, apply_norm=True),
-        dict(filters=512, kernel_size=4, apply_norm=True),
+        dict(filters=128, kernel_size=4, apply_norm=True, norm_type=norm_type),
+        dict(filters=256, kernel_size=4, apply_norm=True, norm_type=norm_type),
+        dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
+        dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
+        dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
+        dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
+        dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
     ]
 
     up_stack = [
-        dict(filters=512, kernel_size=4, apply_dropout=True),
-        dict(filters=512, kernel_size=4, apply_dropout=True),
-        dict(filters=512, kernel_size=4, apply_dropout=True),
-        dict(filters=512, kernel_size=4, apply_dropout=False),
-        dict(filters=256, kernel_size=4, apply_dropout=False),
-        dict(filters=128, kernel_size=4, apply_dropout=False),
-        dict(filters=64, kernel_size=4, apply_dropout=False),
+        dict(filters=512, kernel_size=4, apply_dropout=True, norm_type=norm_type),
+        dict(filters=512, kernel_size=4, apply_dropout=True, norm_type=norm_type),
+        dict(filters=512, kernel_size=4, apply_dropout=True, norm_type=norm_type),
+        dict(filters=512, kernel_size=4, apply_dropout=False, norm_type=norm_type),
+        dict(filters=256, kernel_size=4, apply_dropout=False, norm_type=norm_type),
+        dict(filters=128, kernel_size=4, apply_dropout=False, norm_type=norm_type),
+        dict(filters=64, kernel_size=4, apply_dropout=False, norm_type=norm_type),
     ]
 
     input_layers = []
@@ -120,8 +121,11 @@ def pix2pix(input_shape=None, heads=1, out_dims=3, activation='tanh'):
 
     # downsampling
     skips = []
-    for down in down_stack:
-        x = downsample(x, down['filters'], down['kernel_size'], apply_norm=down['apply_norm'])
+    for block in down_stack:
+        x = downsample(x,
+                       block['filters'],
+                       block['kernel_size'],
+                       apply_norm=block['apply_norm'])
         skips.append(x)
 
     skips = reversed(skips[:-1])
@@ -132,8 +136,12 @@ def pix2pix(input_shape=None, heads=1, out_dims=3, activation='tanh'):
         x = tf.keras.layers.Concatenate()([x, skip])
 
     initializer = tf.random_normal_initializer(0., 0.02)
-    last = tf.keras.layers.Conv2DTranspose(out_dims, 4, strides=2, padding='same',
-                                           kernel_initializer=initializer, activation=activation)
+    last = tf.keras.layers.Conv2DTranspose(filters=3,
+                                           kernel_size=4,
+                                           strides=2,
+                                           padding='same',
+                                           kernel_initializer=initializer,
+                                           activation=activation)
     x = last(x)
 
     return tf.keras.Model(inputs=input_layers, outputs=x)
