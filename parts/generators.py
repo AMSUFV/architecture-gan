@@ -5,7 +5,7 @@ from parts.blocks import downsample, upsample
 
 
 # TODO: add reflection padding
-def resnet():
+def resnet(input_shape=(512, 512, 3), dim=64, downsamplings=2, res_blocks=9):
     """CycleGAN implementation https://arxiv.org/abs/1703.10593
 
     Per the paper's appendix:
@@ -36,49 +36,45 @@ def resnet():
         """Residual block - 256 filters - 3x3 kernel size
         Following the guidelines from http://torch.ch/blog/2016/02/04/resnets.html
         """
-
+        filters = res_x.shape[-1]
         h = res_x
 
-        h = tf.keras.layers.Conv2D(filters=256, kernel_size=3, padding='same')(h)
+        h = tf.keras.layers.Conv2D(filters=filters, kernel_size=3, padding='same')(h)
         h = tfa.layers.InstanceNormalization()(h)
         h = tf.keras.layers.ReLU()(h)
 
-        h = tf.keras.layers.Conv2D(filters=256, kernel_size=3, padding='same')(h)
+        h = tf.keras.layers.Conv2D(filters=filters, kernel_size=3, padding='same')(h)
         h = tfa.layers.InstanceNormalization()(h)
 
         return tf.keras.layers.add([res_x, h])
 
     # input
-    x = inputs = tf.keras.Input(shape=[256, 256, 3])
+    x = inputs = tf.keras.Input(shape=input_shape)
 
     # c7s1-64 - 7x7 Convolution-InstanceNorm-ReLU (stride=1)
-    x = tf.keras.layers.Conv2D(filters=64, kernel_size=7, strides=1, padding='same')(x)
+    x = tf.keras.layers.Conv2D(filters=dim, kernel_size=7, strides=1, padding='same')(x)
     x = tfa.layers.InstanceNormalization()(x)
     x = tf.keras.layers.ReLU()(x)
 
     # d128 - 3x3 Convolution-InstanceNorm-ReLU (kernel_size=3, strides=2)
-    x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, strides=2, padding='same')(x)
-    x = tfa.layers.InstanceNormalization()(x)
-    x = tf.keras.layers.ReLU()(x)
-
     # d256 - 3x3 Convolution-InstanceNorm-ReLU (kernel_size=3, strides=2)
-    x = tf.keras.layers.Conv2D(filters=256, kernel_size=3, strides=2, padding='same')(x)
-    x = tfa.layers.InstanceNormalization()(x)
-    x = tf.keras.layers.ReLU()(x)
+    for _ in range(downsamplings):
+        dim *= 2
+        x = tf.keras.layers.Conv2D(filters=dim, kernel_size=3, strides=2, padding='same')(x)
+        x = tfa.layers.InstanceNormalization()(x)
+        x = tf.keras.layers.ReLU()(x)
 
-    # 6 x R256 - Residual block with 3x3 conv
-    for _ in range(6):
+    # 6-9 x R256 - Residual block with 3x3 conv
+    for _ in range(res_blocks):
         x = _residual_block(x)
 
     # u128 - 3x3 fractional-strided-Convolution-InstanceNorm-ReLU
-    x = tf.keras.layers.Conv2DTranspose(filters=128, kernel_size=3, strides=2, padding='same')(x)
-    x = tfa.layers.InstanceNormalization()(x)
-    x = tf.keras.layers.ReLU()(x)
-
     # u64 - 3x3 fractional-strided-Convolution-InstanceNorm-ReLU
-    x = tf.keras.layers.Conv2DTranspose(filters=64, kernel_size=3, strides=2, padding='same')(x)
-    x = tfa.layers.InstanceNormalization()(x)
-    x = tf.keras.layers.ReLU()(x)
+    for _ in range(downsamplings):
+        dim //= 2
+        x = tf.keras.layers.Conv2DTranspose(filters=128, kernel_size=3, strides=2, padding='same')(x)
+        x = tfa.layers.InstanceNormalization()(x)
+        x = tf.keras.layers.ReLU()(x)
 
     # c7s1-3 7x7 Convolution-InstanceNorm-ReLU (stride=1)
     x = tf.keras.layers.Conv2D(filters=3, kernel_size=7, strides=1, padding='same')(x)
