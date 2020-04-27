@@ -9,6 +9,19 @@ path_temples_ruins_colors = '/colors_temples_ruins'
 images_per_temple = 300
 
 
+def get_dataset(option, *args):
+    if option.lower() == 'direct':
+        return get_dataset_reconstruction(*list(*args))
+    elif option.lower() == 'color_reconstruction':
+        return get_dataset_reconstruction(*list(*args), mode='color')
+    elif option.lower() == 'segmentation':
+        return get_dataset_segmentation(*list(*args))
+    elif option.lower() == 'segmentation_inv':
+        return get_dataset_segmentation(*list(*args), inverse=True)
+    elif option.lower() == 'color_assisted':
+        return get_dataset_dual_input(*list(*args))
+
+
 def setup_paths(path_dataset):
     global path_temples
     global path_temples_ruins
@@ -104,7 +117,7 @@ def get_dataset_reconstruction(temples: list, split=0.25, batch_size=1, repeat=1
     return train, validation
 
 
-def get_dataset_segmentation(temples: list, split=0.25, batch_size=1, img_format='png', repeat=1, inverse=False,
+def get_dataset_segmentation(temples: list, split=0.25, batch_size=1, repeat=1, img_format='png', inverse=False,
                              mask=False):
     buffer_size = len(temples) * images_per_temple * repeat
     validation_size = round(buffer_size * split)
