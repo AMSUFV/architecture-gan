@@ -1,5 +1,5 @@
 import argparse
-from utils.dataset_tool import get_dataset
+from utils.dataset_tool import get_dataset, setup_paths
 
 ps = argparse.ArgumentParser()
 
@@ -24,4 +24,5 @@ ds.add_argument('--img_format', default='png')
 args = ps.parse_args()
 # dataset = get_dataset(args.option)
 ds_args = [args.img_format, args.split, args.batch_size, args.repeat]
+setup_paths(args.dataset_dir)
 train, validation = get_dataset(args.option, *ds_args)
