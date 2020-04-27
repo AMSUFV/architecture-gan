@@ -9,17 +9,17 @@ path_temples_ruins_colors = '/colors_temples_ruins'
 images_per_temple = 300
 
 
-def get_dataset(option, *args):
-    if option.lower() == 'direct':
-        return get_dataset_reconstruction(*list(*args))
+def get_dataset(option, args):
+    if option.lower() == 'reconstruction':
+        return get_dataset_reconstruction(*args)
     elif option.lower() == 'color_reconstruction':
-        return get_dataset_reconstruction(*list(*args), mode='color')
+        return get_dataset_reconstruction(*args, mode='color')
     elif option.lower() == 'segmentation':
-        return get_dataset_segmentation(*list(*args))
+        return get_dataset_segmentation(*args)
     elif option.lower() == 'segmentation_inv':
-        return get_dataset_segmentation(*list(*args), inverse=True)
+        return get_dataset_segmentation(*args, inverse=True)
     elif option.lower() == 'color_assisted':
-        return get_dataset_dual_input(*list(*args))
+        return get_dataset_dual_input(*args)
 
 
 def setup_paths(path_dataset):
@@ -93,8 +93,8 @@ def get_dataset_reconstruction(temples: list, split=0.25, batch_size=1, repeat=1
     validation_size = round(buffer_size * split)
 
     dataset_paths = []
-    for i, temple in enumerate(temples):
-        glob_pattern = f'/*{temple}*/*.{img_format}'
+    for n in temples:
+        glob_pattern = f'/*temple_{n}*/*.{img_format}'
 
         if mode == 'real':
             dataset_in = tf.data.Dataset.list_files(path_temples_ruins + glob_pattern, shuffle=False)

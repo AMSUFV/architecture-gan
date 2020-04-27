@@ -7,9 +7,9 @@ import utils
 
 
 class Pix2Pix:
-    def __init__(self, input_shape=(512, 512, 3), norm_type='batchnorm'):
+    def __init__(self, input_shape=(512, 512, 3), norm_type='batchnorm', heads=1):
         self.discriminator = discriminator(input_shape=input_shape, norm_type=norm_type)
-        self.generator = generator(input_shape=input_shape, norm_type=norm_type)
+        self.generator = generator(input_shape=input_shape, norm_type=norm_type, heads=heads)
         self.loss_d, self.loss_g = losses.pix2pix()
         self.g_optimizer = self.d_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
 
