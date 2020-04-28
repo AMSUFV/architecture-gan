@@ -15,9 +15,5 @@ class TestTrain(unittest.TestCase):
         self.tempdir = tempfile.TemporaryDirectory()
 
     def test_resnet(self):
-
-        resnet = ResNet(input_shape=(512, 512, 3))
+        resnet = ResNet()
         resnet.fit(self.dataset, 1, path=self.tempdir.name)
-
-    def tearDown(self) -> None:
-        shutil.rmtree(self.tempdir.name, ignore_errors=True)

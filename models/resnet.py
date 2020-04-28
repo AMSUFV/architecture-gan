@@ -4,7 +4,8 @@ from parts import losses
 
 
 class ResNet(Pix2Pix):
-    def __init__(self, input_shape=(512, 512, 3), norm_type='instancenorm'):
+    def __init__(self, input_shape=(None, None, 3), norm_type='instancenorm'):
         super().__init__(input_shape, norm_type)
+        self.name = 'resnet'
         self.generator = resnet_generator(input_shape)
         self.loss_d, self.loss_g = losses.pix2pix()

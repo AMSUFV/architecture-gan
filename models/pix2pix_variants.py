@@ -7,7 +7,7 @@ from parts import losses
 
 
 class Pix2Pix:
-    def __init__(self, input_shape=(512, 512, 3), norm_type='batchnorm', heads=1):
+    def __init__(self, input_shape=(None, None, 3), norm_type='batchnorm', heads=1):
         self.name = 'pix2pix'
         self.discriminator = discriminator(input_shape=input_shape, norm_type=norm_type)
         self.generator = generator(input_shape=input_shape, norm_type=norm_type, heads=heads)
@@ -66,9 +66,8 @@ class Pix2Pix:
         return g_dict, d_dict
 
     def fit(self, dataset, epochs, path=None):
-        # logs are saved with format 'model_name_Y-M-d_h:m:s/train'
-        time = str(datetime.today())[:19].replace(' ', '_')
-        writer = tf.summary.create_file_writer(path + f'{self.name}_{time}\\train')
+        time = datetime.now().strftime('%Y%m%d-%H%M%S')
+        writer = tf.summary.create_file_writer(path + f'{self.name}/{time}/train')
 
         with writer.as_default():
             for _ in range(epochs):
