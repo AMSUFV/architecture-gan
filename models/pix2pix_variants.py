@@ -4,7 +4,6 @@ import os
 from parts.discriminators import patch as discriminator
 from parts.generators import pix2pix as generator
 from parts import losses
-import utils
 
 
 class Pix2Pix:
@@ -59,11 +58,11 @@ class Pix2Pix:
         return g_dict, d_dict
 
     def fit(self, dataset, epochs, path=None):
-        writer = tf.summary.create_file_writer(path + '/train')
+        # writer = tf.summary.create_file_writer(path + '/train')
 
-        with writer.as_default():
-            for _ in range(epochs):
-                for x, y in dataset:
-                    g_dict, d_dict = self.train_step(x, y)
-                    # utils.summary(g_dict, step=self.g_optimizer.iterations, name='g_losses')
-                    # utils.summary(d_dict, step=self.g_optimizer.iterations, name='d_losses')
+        # with writer.as_default():
+        for _ in range(epochs):
+            for x, y in dataset:
+                g_dict, d_dict = self.train_step(x, y)
+                # utils.summary(g_dict, step=self.g_optimizer.iterations, name='g_losses')
+                # utils.summary(d_dict, step=self.g_optimizer.iterations, name='d_losses')
