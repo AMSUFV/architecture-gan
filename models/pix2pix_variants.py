@@ -69,14 +69,15 @@ class Pix2Pix:
         images = dict(x=x, y=y, gx=gx)
         return g_dict, d_dict, images
 
-    def fit(self, dataset, epochs, path=None):
+    def fit(self, dataset, epochs, path=None, img_update=25):
         time = datetime.now().strftime('%Y%m%d-%H%M%S')
         writer = tf.summary.create_file_writer(path + f'{self.name}/{time}/train')
 
         with writer.as_default():
-            for _ in range(epochs):
+            for i in range(epochs):
                 for x, y in dataset:
                     g_dict, d_dict, images = self.train_step(x, y)
                     self.write(g_dict, step=self.g_optimizer.iterations, name='g_losses')
                     self.write(d_dict, step=self.g_optimizer.iterations, name='d_losses')
-                    self.write(images, step=self.g_optimizer.iterations, name='images', dtype='image')
+                    if i % img_update == 0:
+                        self.write(images, step=self.g_optimizer.iterations, name='images', dtype='image')
