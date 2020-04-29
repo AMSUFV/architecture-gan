@@ -25,10 +25,14 @@ class Pix2Pix:
             tf.keras.utils.plot_model(self.discriminator, to_file='discriminator.png')
 
     @staticmethod
-    def write(metrics_dict, step=None, name='summary'):
+    def write(metrics_dict, step=None, name='summary', dtype='scalar'):
         with tf.name_scope(name):
+            if dtype == 'image':
+                w_func = tf.summary.image
+            else:
+                w_func = tf.summary.scalar
             for name, data in metrics_dict.items():
-                tf.summary.scalar(name, data, step=step)
+                w_func(name, data, step=step)
 
     @tf.function
     def train_g(self, x, y):
@@ -62,8 +66,8 @@ class Pix2Pix:
     def train_step(self, x, y):
         gx, g_dict = self.train_g(x, y)
         d_dict = self.train_d(x, gx, y)
-
-        return g_dict, d_dict
+        images = dict(x=x, y=y, gx=gx)
+        return g_dict, d_dict, images
 
     def fit(self, dataset, epochs, path=None):
         time = datetime.now().strftime('%Y%m%d-%H%M%S')
@@ -72,6 +76,7 @@ class Pix2Pix:
         with writer.as_default():
             for _ in range(epochs):
                 for x, y in dataset:
-                    g_dict, d_dict = self.train_step(x, y)
+                    g_dict, d_dict, images = self.train_step(x, y)
                     self.write(g_dict, step=self.g_optimizer.iterations, name='g_losses')
                     self.write(d_dict, step=self.g_optimizer.iterations, name='d_losses')
+                    self.write(images, step=self.g_optimizer.iterations, name='images', dtype='image')
