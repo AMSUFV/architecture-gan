@@ -8,6 +8,12 @@ TGT_HEIGHT = 256
 
 RESIZE_FACTOR = 1.3
 
+# mask - pink color
+r = b = tf.fill((TGT_WIDTH, TGT_HEIGHT), 1.0)
+g = tf.fill((TGT_WIDTH, TGT_HEIGHT), 0.0)
+mask = tf.stack((r, g, b), axis=2)
+mask = tf.cast(mask, dtype='float32')
+
 
 def load_images_train(*paths):
     images = load(paths)
@@ -100,6 +106,32 @@ def load_images_mask_val(*paths):
     images = central_crop(images)
     images = normalize(images)
     return images
+
+
+def load_images_pink_mask(*paths):
+    images = load(paths)
+    images = get_mask(images)
+    images = random_jitter(images)
+    images = normalize(images)
+    return images
+
+
+def get_mask(images):
+    # images[0] are the segmented temple ruins
+    # images[1] is the segmented temple
+    # images[2] is the true color temple
+    for image in images:
+        print(image.shape)
+    # compare the two images
+    comparison = tf.where(images[0] == images[1], 0, 1)
+    # if all the pixel's values are the same, the sum will be 0, eg. [0, 0, 0] vs [1, 0, 1]
+    # this gives us a 2D matrix with zeros where the pixels are the same and ones where they are not
+    comparison = tf.reduce_sum(comparison, axis=2)
+    comparison = tf.expand_dims(comparison, axis=2)
+    # we keep the real image where they are the same, and put the mask where they differ
+    image = tf.where(comparison == 0, images[2], mask)
+    print(images[2].shape, image.shape)
+    return images[2], image
 
 
 def create_mask(images):

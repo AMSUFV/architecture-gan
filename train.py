@@ -14,7 +14,8 @@ ds.add_argument('--training_type', default='reconstruction', choices=['color_ass
                                                                       'color_reconstruction',
                                                                       'reconstruction',
                                                                       'segmentation',
-                                                                      'segmentation_inv'
+                                                                      'segmentation_inv',
+                                                                      'demasking'
                                                                       ])
 ds.add_argument('--dataset_dir', default='dataset/')
 ds.add_argument('--temples', type=int, nargs='+')
@@ -35,8 +36,8 @@ path = os.path.join(os.getcwd(), args.dataset_dir)
 setup_paths(path)
 
 train, validation = get_dataset(args.training_type, ds_args)
-
-model = get_model(args.model, args.training_type)
-
-log_path = os.path.join(os.getcwd(), args.log_dir)
-model.fit(train, args.epochs, path=log_path)
+#
+# model = get_model(args.model, args.training_type)
+#
+# log_path = os.path.join(os.getcwd(), args.log_dir)
+# model.fit(train, args.epochs, path=log_path)

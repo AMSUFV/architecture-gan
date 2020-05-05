@@ -1,4 +1,5 @@
 from utils import custom_preprocessing as cp
+from utils import preprocessing as pp
 import tensorflow as tf
 import glob
 
@@ -147,6 +148,14 @@ def get_dataset_segmentation(temples: list, split=0.25, batch_size=1, repeat=1, 
     return train, validation
 
 
+def get_dataset_mask(dir_in, dir_out, batch_size=1):
+    x = tf.data.Dataset.list_files(dir_in + '/*.png', shuffle=False)
+    y = tf.data.Dataset.list_files(dir_out + '/*', shuffle=False)
+    dataset = tf.data.Dataset.zip((x, y))
+    dataset = dataset.map(pp.load_images).batch(batch_size)
+    return dataset
+
+
 def _concat_datasets(dataset_paths, validation_size, buffer_size, batch_size):
     dataset = dataset_paths[0]
     dataset_paths.pop(0)
@@ -159,7 +168,7 @@ def _concat_datasets(dataset_paths, validation_size, buffer_size, batch_size):
 
 def _split_dataset(dataset, validation_size, batch_size):
     validation = dataset.take(validation_size).map(cp.load_images_val).batch(batch_size)
-    train = dataset.skip(validation_size).map(cp.load_images_train).batch(batch_size)
+    train = dataset.skip(validation_size).map(pp.load_images).batch(batch_size)
 
     return train, validation
 
@@ -169,3 +178,9 @@ def _mask_outputs(dataset, validation_size, batch_size):
     train = dataset.skip(validation_size).map(cp.load_images_mask_train).batch(batch_size)
 
     return train, validation
+
+
+if __name__ == '__main__':
+    path_in = '../dataset/colors_temples_ruins/colors_temple_0_ruins_1'
+    path_out = '../dataset/colors_temples/colors_temple_0'
+    ds = get_dataset_mask(path_in, path_out)
