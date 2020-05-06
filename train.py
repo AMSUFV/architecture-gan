@@ -1,6 +1,8 @@
 import argparse
 import os
 from utils import get_model, get_dataset, setup_paths
+from utils import preprocessing
+from utils import data
 
 ps = argparse.ArgumentParser()
 
@@ -32,10 +34,12 @@ if args.dataset_dir[-1] not in ['/', '\\']:
 if args.log_dir[-1] not in ['/', '\\']:
     args.log_dir += '/'
 
-path = os.path.join(os.getcwd(), args.dataset_dir)
-setup_paths(path)
+# preprocessing.apply_mask = True
 
-train, validation = get_dataset(args.training_type, ds_args)
+# path = os.path.join(os.getcwd(), args.dataset_dir)
+# setup_paths(path)
+#
+# train, validation = get_dataset(args.training_type, ds_args)
 #
 # model = get_model(args.model, args.training_type)
 #

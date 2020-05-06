@@ -120,8 +120,6 @@ def get_mask(images):
     # images[0] are the segmented temple ruins
     # images[1] is the segmented temple
     # images[2] is the true color temple
-    for image in images:
-        print(image.shape)
     # compare the two images
     comparison = tf.where(images[0] == images[1], 0, 1)
     # if all the pixel's values are the same, the sum will be 0, eg. [0, 0, 0] vs [1, 0, 1]
