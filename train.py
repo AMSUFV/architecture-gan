@@ -16,8 +16,9 @@ ds.add_argument('--training_type', default='reconstruction', choices=['color_ass
                                                                       'color_reconstruction',
                                                                       'reconstruction',
                                                                       'segmentation',
-                                                                      'segmentation_inv',
-                                                                      'demasking'
+                                                                      'de-segmentation',
+                                                                      'masking',
+                                                                      'de-masking'
                                                                       ])
 ds.add_argument('--dataset_dir', default='dataset/')
 ds.add_argument('--temples', type=int, nargs='+')
@@ -27,12 +28,14 @@ ds.add_argument('--repeat', type=int, default=1)
 ds.add_argument('--img_format', default='png')
 
 args = ps.parse_args()
-ds_args = [args.temples, args.split, args.batch_size, args.repeat, args.img_format]
 
-if args.dataset_dir[-1] not in ['/', '\\']:
-    args.dataset_dir += '/'
-if args.log_dir[-1] not in ['/', '\\']:
-    args.log_dir += '/'
+data.repeat = args.repeat
+
+if not os.path.isabs(args.log_dir):
+    args.log_dir = os.path.abspath(args.log_dir)
+
+ds_args = [args.temples, args.split, args.batch_size, args.img_format]
+train, val = data.get_dataset(args.dataset_dir, args.training_type, *ds_args)
 
 # preprocessing.apply_mask = True
 

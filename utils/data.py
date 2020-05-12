@@ -1,3 +1,4 @@
+import glob
 import os
 import tensorflow as tf
 from functools import reduce
@@ -9,40 +10,65 @@ path_temples_ruins = '/temples_ruins'
 path_temples_colors = '/colors_temples'
 path_temples_ruins_colors = '/colors_temples_ruins'
 
-x_path = y_path = aux_path = None
-
-repeat = 1
+repetitions = [1, 2]
 len_dataset = 100
 
+simple_options = ['reconstruction', 'color_reconstruction', 'segmentation', 'de-segmentation']
+complex_options = ['color_assisted', 'masking', 'de-masking']
 
-def setup(path, option, *args):
-    global x_path, y_path
+mapping_func = preprocessing.load_images
 
+
+# todo: solve multiple input paths
+def get_dataset(path, option, *args):
+
+    option = option.lower()
     if not os.path.isabs(path):
         path = os.path.abspath(path)
 
-    if option.lower() == 'reconstruction':
-        x_path = path + path_temples_ruins
-        y_path = path + path_temples
-        pass
-    elif option.lower() == 'color_reconstruction':
-        x_path = path + path_temples_ruins_colors
-        y_path = path + path_temples_colors
-        pass
-    elif option.lower() == 'segmentation':
-        x_path = [path + path_temples_colors, path + path_temples_ruins_colors]
-        y_path = [path + path_temples, path + path_temples_ruins]
-        pass
-    elif option.lower() == 'segmentation_inv':
-        x_path = [path + path_temples, path + path_temples_ruins]
-        y_path = [path + path_temples_colors, path + path_temples_ruins_colors]
-        pass
-    elif option.lower() == 'color_assisted':
-        pass
+    if option in simple_options:
+        if option == 'reconstruction':
+            x_path = path + path_temples_ruins
+            y_path = path + path_temples
+        elif option == 'color_reconstruction':
+            x_path = path + path_temples_ruins_colors
+            y_path = path + path_temples_colors
+        elif option == 'segmentation':
+            x_path = [path + path_temples_colors, path + path_temples_ruins_colors]
+            y_path = [path + path_temples, path + path_temples_ruins]
+        elif option == 'de-segmentation':
+            x_path = [path + path_temples, path + path_temples_ruins]
+            y_path = [path + path_temples_colors, path + path_temples_ruins_colors]
+        else:
+            x_path = y_path = None
+
+        return reconstruction(*args, x_path, y_path)
+
+    elif option in complex_options:
+        if option == 'color_assisted':
+            pass
+        # for masking and de-masking
+        # x is the segmented temple ruins
+        # y is the segmented, complete temple
+        # z is the true-color temple
+        elif option == 'masking':
+            pass
+
+        elif option == 'de-masking':
+            preprocessing.apply_mask = True
+            x_path = path + path_temples_ruins_colors
+            y_path = path + path_temples_colors
+            z_path = path + path_temples
+            return reconstruction(*args, x_path, y_path, z_path)
+
+    else:
+        raise Exception('Option not supported. Run train.py -h to see the supported options.')
+
+    return reconstruction(*args, *paths)
 
 
-def reconstruction(temples, split=0.25, batch_size=1, buffer_size=400):
-    files = list(map(simple_xy, temples))
+def reconstruction(temples, split=0.25, batch_size=1, buffer_size=400, *paths):
+    files = list(map(lambda x: simple(x, paths), temples))
     files = reduce(concat, files)
     train_files, val_files = train_val_split(files, split, buffer_size)
 
@@ -54,22 +80,11 @@ def reconstruction(temples, split=0.25, batch_size=1, buffer_size=400):
     return train, val
 
 
-def assisted(temples, split=0.25, batch_size=1, buffer_size=400):
-    files = list(map(simple_xy, temples))
-
-
-def simple_xy(number):
-    pattern = f'/*temple_{number}*/*'
-    x_paths, y_paths = list(x_path), list(y_path)
-    x_patterns = list(map(lambda z: z + pattern, x_paths))
-    y_patterns = list(map(lambda z: z + pattern, y_paths))
-
-    x = tf.data.Dataset.list_files(x_patterns, shuffle=False)
-    y = tf.data.Dataset.list_files(y_patterns, shuffle=False)
-    y = y.repeat(repeat)
-    combined = tf.data.Dataset.zip((x, y))
-
-    return combined
+def simple(number, paths):
+    pattern = f'/*temple{number}*/*'
+    file_datasets = [tf.data.Dataset.list_files(path + pattern, shuffle=False).repeat(rep)
+                     for path, rep in zip(paths, repetitions)]
+    return tf.data.Dataset.zip(tuple(file_datasets))
 
 
 def concat(a, b):
