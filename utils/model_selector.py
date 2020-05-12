@@ -10,5 +10,6 @@ def get_model(name, training):
 
     if name.lower() == 'pix2pix':
         return Pix2Pix(heads=heads)
+
     elif name.lower() == 'resnet':
         return ResNet()
