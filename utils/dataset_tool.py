@@ -1,3 +1,9 @@
+"""
+This module purpose was to serve as a dataset creation tool.
+As things could be done better and all of the datasets had something in common, its code was refactored and is now
+stored in utils/data.py. 
+"""
+
 from utils import custom_preprocessing as cp
 from utils import preprocessing as pp
 import tensorflow as tf
@@ -178,9 +184,3 @@ def _mask_outputs(dataset, validation_size, batch_size):
     train = dataset.skip(validation_size).map(cp.load_images_mask_train).batch(batch_size)
 
     return train, validation
-
-
-if __name__ == '__main__':
-    path_in = '../dataset/colors_temples_ruins/colors_temple_0_ruins_1'
-    path_out = '../dataset/colors_temples/colors_temple_0'
-    ds = get_dataset_mask(path_in, path_out)

@@ -52,8 +52,8 @@ train, val = data.get_dataset(args.dataset_dir, args.training_type, *ds_args)
 writer = tf.summary.create_file_writer(f'logs/test/{args.training_type}')
 with writer.as_default():
     for i, (x, y) in enumerate(train):
-        # x_norm = ((x + 1) * 255) / 2
-        # y_norm = ((y + 1) * 255) / 2
+        x_norm = (x + 1) / 2
+        y_norm = (y + 1) / 2
         tf.summary.image('x', x, step=i)
         tf.summary.image('y', y, step=i)
 
