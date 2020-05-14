@@ -1,5 +1,6 @@
 import argparse
 import os
+from datetime import datetime
 from utils import get_model, get_dataset, setup_paths
 from utils import preprocessing
 from utils import data
@@ -28,10 +29,14 @@ ds.add_argument('--batch_size', type=int, default=1)
 ds.add_argument('--buffer_size', type=int, default=400)
 ds.add_argument('--repeat', type=int, default=1)
 ds.add_argument('--img_format', default='png')
-ds.add_argument('--img_width', type=int, default=512)
 ds.add_argument('--img_height', type=int, default=384)
+ds.add_argument('--img_width', type=int, default=512)
 
 args = ps.parse_args()
+
+preprocessing.height = args.img_height
+preprocessing.width = args.img_width
+preprocessing.setup(args.img_format)
 
 img_format = args.img_format.strip('.').lower()
 preprocessing.setup(img_format)
@@ -49,16 +54,15 @@ if not os.path.isabs(args.log_dir):
 ds_args = [args.temples, args.split, args.batch_size, args.buffer_size]
 train, val = data.get_dataset(args.dataset_dir, args.training_type, *ds_args)
 
-writer = tf.summary.create_file_writer(f'logs/test/{args.training_type}')
-with writer.as_default():
-    for i, (x, y) in enumerate(train):
-        x_norm = (x + 1) / 2
-        y_norm = (y + 1) / 2
-        tf.summary.image('x', x, step=i)
-        tf.summary.image('y', y, step=i)
+model = get_model(args.model, args.training_type)
 
+# logs
+time = datetime.now().strftime('%Y%m%d-%H%M%S')
+temples = [str(x) for x in args.temples]
+temples = ''.join(temples)
+resolution = f'{args.img_width}x{args.img_height}'
+model_dir = f'/{args.model}/{args.training_type}/'
+model_dir += f't{temples}-{resolution}-buffer{args.buffer_size}-batch{args.batch_size}/{time}'
+log_path = os.path.join(os.getcwd(), args.log_dir + model_dir)
 
-# model = get_model(args.model, args.training_type)
-#
-# log_path = os.path.join(os.getcwd(), args.log_dir)
-# model.fit(train, args.epochs, path=log_path)
+model.fit(train, args.epochs, path=log_path)

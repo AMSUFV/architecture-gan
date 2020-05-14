@@ -6,10 +6,7 @@ resize_factor = 1.3
 a, b = -1, 1
 
 # mask - pink color
-R = B = tf.fill((height, width), 255)
-G = tf.fill((height, width), 0)
-mask = tf.stack((R, G, B), axis=2)
-mask = tf.cast(mask, dtype='float32')
+mask = None
 apply_mask = False
 demasking = False
 
@@ -18,11 +15,15 @@ img_decoding = tf.io.decode_png
 
 
 def setup(img_format):
-    global img_decoding
+    global img_decoding, mask
     if img_format == 'png':
         img_decoding = tf.io.decode_png
     elif img_format == 'jpeg':
         img_decoding = tf.io.decode_jpeg
+    red = blue = tf.fill((height, width), 255)
+    green = tf.fill((height, width), 0)
+    mask = tf.stack((red, green, blue), axis=2)
+    mask = tf.cast(mask, dtype='float32')
 
 
 def load_images(*paths):

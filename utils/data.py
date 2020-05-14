@@ -71,7 +71,7 @@ def reconstruction(temples, split=0.25, batch_size=1, buffer_size=400, *paths):
 
     # dataset size
     size = list(map(lambda x: len(glob.glob(paths[0] + glob_pattern.format(x))), temples))
-    size = reduce((lambda x, y: x + y), size)
+    size = reduce((lambda x, y: max(x, y)), size)
 
     train_files, val_files = train_val_split(files, split, size, buffer_size)
 

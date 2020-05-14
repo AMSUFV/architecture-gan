@@ -1,4 +1,3 @@
-from datetime import datetime
 import tensorflow as tf
 
 from parts.discriminators import patch as discriminator
@@ -70,8 +69,8 @@ class Pix2Pix:
         return g_dict, d_dict, images
 
     def fit(self, dataset, epochs, path=None, img_update=25):
-        time = datetime.now().strftime('%Y%m%d-%H%M%S')
-        writer = tf.summary.create_file_writer(path + f'{self.name}/{time}/train')
+
+        writer = tf.summary.create_file_writer(path)
 
         with writer.as_default():
             for i in range(epochs):
