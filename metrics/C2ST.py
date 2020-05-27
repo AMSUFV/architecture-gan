@@ -1,6 +1,6 @@
 import tensorflow as tf
-from models.pix2pix import downsample
-from utils import custom_preprocessing as cp
+from deprecated.models.pix2pix import downsample
+from deprecated.utils import custom_preprocessing as cp
 
 # validation
 import random

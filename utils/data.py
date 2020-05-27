@@ -52,13 +52,13 @@ def get_dataset(path, option, *args):
             return reconstruction(*args, x_path, y_path, z_path, aux_path)
 
     elif option == 'segmentation':
-        x_path = [path + path_temples_ruins, path + path_temples]
-        y_path = [path + path_temples_ruins_colors, path + path_temples_colors]
+        x_path = path + path_temples
+        y_path = path + path_temples_colors
         return reconstruction(*args, x_path, y_path)
 
     elif option == 'de-segmentation':
-        x_path = [path + path_temples_ruins_colors, path + path_temples_colors]
-        y_path = [path + path_temples_ruins, path + path_temples]
+        x_path = path + path_temples_colors
+        y_path = path + path_temples
         return reconstruction(*args, x_path, y_path)
 
     else:
@@ -115,3 +115,13 @@ def get_simple_dataset(width, height, *paths):
 
     return file_dataset.map(preprocessing.load_test_images, num_parallel_calls=tf.data.experimental.AUTOTUNE)\
         .batch(1)
+
+
+def validate(model, width, height):
+    if model.lower() == 'pix2pix':
+        if width % 2**pix2pix['down_blocks'] != 0:
+            raise Exception("Width exception. The image won't make it through the bottleneck.")
+        elif height % 2**pix2pix['down_blocks'] != 0:
+            raise Exception("Height exception. The image won't make it through the bottleneck.")
+        else:
+            pass

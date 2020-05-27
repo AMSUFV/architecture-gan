@@ -1,5 +1,5 @@
 import tensorflow as tf
-from models.hybrid_reconstuctor import HybridReconstructor
+from deprecated.models.hybrid_reconstuctor import HybridReconstructor
 
 
 class RaisingLamdba(HybridReconstructor):

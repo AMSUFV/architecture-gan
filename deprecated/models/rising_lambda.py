@@ -1,4 +1,4 @@
-from models.pix2pix import Pix2Pix
+from deprecated.models.pix2pix import Pix2Pix
 import tensorflow as tf
 
 

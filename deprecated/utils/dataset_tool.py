@@ -4,7 +4,7 @@ As things could be done better and all of the datasets had something in common, 
 stored in utils/data.py. 
 """
 
-from utils import custom_preprocessing as cp
+from deprecated.utils import custom_preprocessing as cp
 from utils import preprocessing as pp
 import tensorflow as tf
 import glob

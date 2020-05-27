@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import datetime
 import tensorflow as tf
-from utils import dataset_tool
+from deprecated.utils import dataset_tool
 
 
 # Convenience functions

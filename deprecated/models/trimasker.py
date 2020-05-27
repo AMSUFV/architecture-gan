@@ -1,6 +1,6 @@
 import tensorflow as tf
-from models import pix2pix_updated as pix
-from utils import dataset_tool
+from deprecated.models import pix2pix_updated as pix
+from deprecated.utils import dataset_tool
 
 
 class MaskReconstructor(pix.Pix2Pix):

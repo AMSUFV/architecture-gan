@@ -1,6 +1,6 @@
 import tensorflow as tf
-from utils import dataset_tool
-from models import pix2pix_updated as pix
+from deprecated.utils import dataset_tool
+from deprecated.models import pix2pix_updated as pix
 
 
 class Masker(pix.Pix2Pix):

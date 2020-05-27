@@ -1,6 +1,6 @@
 import tensorflow as tf
-from models.pix2pix import Pix2Pix
-from utils import dataset_tool
+from deprecated.models.pix2pix import Pix2Pix
+from deprecated.utils import dataset_tool
 
 
 class Trimodel:

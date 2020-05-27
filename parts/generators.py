@@ -89,48 +89,59 @@ def pix2pix(input_shape=None, heads=1, dim=64, down_blocks=8, downsamplings=4, n
     if input_shape is None:
         input_shape = (None, None, 3)
 
-    down_stack = [
-        dict(filters=64, kernel_size=4, apply_norm=False),
-        dict(filters=128, kernel_size=4, apply_norm=True, norm_type=norm_type),
-        dict(filters=256, kernel_size=4, apply_norm=True, norm_type=norm_type),
-        dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
-        dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
-        dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
-        dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
-        dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
-    ]
+    down_stack = [dict(filters=dim, kernel_size=4, apply_norm=False)]
+    for i in range(down_blocks - 1):
+        if i < downsamplings - 1:
+            dim *= 2
+        down_stack.append(dict(filters=dim, kernel_size=4, apply_norm=True, norm_type=norm_type))
 
-    up_stack = [
-        dict(filters=512, kernel_size=4, apply_dropout=True, norm_type=norm_type),
-        dict(filters=512, kernel_size=4, apply_dropout=True, norm_type=norm_type),
-        dict(filters=512, kernel_size=4, apply_dropout=True, norm_type=norm_type),
-        dict(filters=512, kernel_size=4, apply_dropout=False, norm_type=norm_type),
-        dict(filters=256, kernel_size=4, apply_dropout=False, norm_type=norm_type),
-        dict(filters=128, kernel_size=4, apply_dropout=False, norm_type=norm_type),
-        dict(filters=64, kernel_size=4, apply_dropout=False, norm_type=norm_type),
-    ]
+    up_stack = []
+    for i in range(down_blocks - 1):
+        if i < 3:
+            up_stack.append(dict(filters=dim, kernel_size=4, apply_dropout=True, norm_type=norm_type))
+        else:
+            up_stack.append(dict(filters=dim, kernel_size=4, apply_dropout=False, norm_type=norm_type))
+        if i >= downsamplings - 1:
+            dim //= 2
 
-    input_layers = []
-    for n in range(heads):
-        input_layers.append(tf.keras.layers.Input(shape=input_shape))
+    # down_stack = [
+    #     dict(filters=64, kernel_size=4, apply_norm=False),
+    #     dict(filters=128, kernel_size=4, apply_norm=True, norm_type=norm_type),
+    #     dict(filters=256, kernel_size=4, apply_norm=True, norm_type=norm_type),
+    #     dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
+    #     dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
+    #     dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
+    #     dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
+    #     dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
+    # ]
+    #
+    # up_stack = [
+    #     dict(filters=512, kernel_size=4, apply_dropout=True, norm_type=norm_type),
+    #     dict(filters=512, kernel_size=4, apply_dropout=True, norm_type=norm_type),
+    #     dict(filters=512, kernel_size=4, apply_dropout=True, norm_type=norm_type),
+    #     dict(filters=512, kernel_size=4, apply_dropout=False, norm_type=norm_type),
+    #     dict(filters=256, kernel_size=4, apply_dropout=False, norm_type=norm_type),
+    #     dict(filters=128, kernel_size=4, apply_dropout=False, norm_type=norm_type),
+    #     dict(filters=64, kernel_size=4, apply_dropout=False, norm_type=norm_type),
+    # ]
 
-    if heads > 1:
-        x = tf.keras.layers.concatenate(input_layers)
+    if heads == 1:
+        x = input_layer = tf.keras.layers.Input(shape=input_shape)
     else:
-        x = input_layers[0]
+        input_layer = []
+        for _ in range(heads):
+            input_layer.append(tf.keras.layers.Input(shape=input_shape))
+        x = tf.keras.layers.concatenate(input_layer)
 
-    # downsampling
+    # down-sampling
     skips = []
     for block in down_stack:
-        x = downsample(x,
-                       block['filters'],
-                       block['kernel_size'],
-                       apply_norm=block['apply_norm'])
+        x = downsample(x, block['filters'], block['kernel_size'], apply_norm=block['apply_norm'])
         skips.append(x)
 
     skips = reversed(skips[:-1])
 
-    # upsampling and connecting
+    # up-sampling and connecting
     for up, skip in zip(up_stack, skips):
         x = upsample(x, up['filters'], up['kernel_size'], apply_dropout=up['apply_dropout'])
         x = tf.keras.layers.Concatenate()([x, skip])
@@ -144,4 +155,4 @@ def pix2pix(input_shape=None, heads=1, dim=64, down_blocks=8, downsamplings=4, n
                                            activation=activation)
     x = last(x)
 
-    return tf.keras.Model(inputs=input_layers, outputs=x)
+    return tf.keras.Model(inputs=input_layer, outputs=x)

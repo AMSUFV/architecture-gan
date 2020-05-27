@@ -23,6 +23,9 @@ class Pix2Pix:
             tf.keras.utils.plot_model(self.generator, to_file='generator.png')
             tf.keras.utils.plot_model(self.discriminator, to_file='discriminator.png')
 
+    def save(self, path):
+        self.generator.save(path)
+
     @staticmethod
     def write(metrics_dict, step=None, name='summary', dtype='scalar'):
         with tf.name_scope(name):
@@ -68,7 +71,7 @@ class Pix2Pix:
         images = dict(x=x, y=y, gx=gx)
         return g_dict, d_dict, images
 
-    def fit(self, dataset, epochs, path=None, img_update=25):
+    def fit(self, dataset, epochs, path=None, log_images=False, img_update=25):
 
         writer = tf.summary.create_file_writer(path)
 
@@ -78,5 +81,6 @@ class Pix2Pix:
                     g_dict, d_dict, images = self.train_step(x, y)
                     self.write(g_dict, step=self.g_optimizer.iterations, name='g_losses')
                     self.write(d_dict, step=self.g_optimizer.iterations, name='d_losses')
-                    if i % img_update == 0:
-                        self.write(images, step=self.g_optimizer.iterations, name='images', dtype='image')
+
+                if log_images and i % img_update == 0:
+                    self.write(images, step=self.g_optimizer.iterations, name='images', dtype='image')

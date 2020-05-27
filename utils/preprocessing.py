@@ -62,7 +62,6 @@ def resize(image, h, w):
 
 
 def random_crop(images):
-
     return tf.image.random_crop(images, size=[images.shape[0], height, width, 3])
 
 
