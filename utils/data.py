@@ -103,3 +103,15 @@ def train_val_split(dataset, split, size, buffer_size):
     train = dataset.skip(round(size * split))
     val = dataset.take(round(size * split))
     return train, val
+
+
+def get_simple_dataset(width, height, *paths):
+    preprocessing.width = width
+    preprocessing.height = height
+
+    file_dataset = [tf.data.Dataset.list_files(path, shuffle=False)
+                    for path in paths]
+    file_dataset = tf.data.Dataset.zip(tuple(file_dataset))
+
+    return file_dataset.map(preprocessing.load_test_images, num_parallel_calls=tf.data.experimental.AUTOTUNE)\
+        .batch(1)

@@ -37,6 +37,12 @@ def load_images(*paths):
     return tf.unstack(images, num=images.shape[0])
 
 
+def load_test_images(*paths):
+    images = list(map(load, paths))
+    images = resize(tf.stack(images), height, width)
+    return tf.unstack(images, num=images.shape[0])
+
+
 def load(path):
     file = tf.io.read_file(tf.squeeze(path))
     image = tf.io.decode_png(file, channels=3)
@@ -44,19 +50,19 @@ def load(path):
 
 
 def jitter(images):
-    resized = resize(images)
+    resized = resize(images, int(height * resize_factor), int(width * resize_factor))
     cropped = random_crop(resized)
     if tf.random.uniform(()) > 0.5:
         return tf.image.flip_left_right(cropped)
     return cropped
 
 
-def resize(image):
-    return tf.image.resize(image, [int(height * resize_factor), int(width * resize_factor)],
-                           method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+def resize(image, h, w):
+    return tf.image.resize(image, [h, w], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
 
 def random_crop(images):
+
     return tf.image.random_crop(images, size=[images.shape[0], height, width, 3])
 
 
