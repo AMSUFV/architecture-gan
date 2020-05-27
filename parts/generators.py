@@ -84,7 +84,7 @@ def resnet(input_shape=(512, 512, 3), dim=64, downsamplings=2, res_blocks=9):
     return tf.keras.Model(inputs=inputs, outputs=x)
 
 
-def pix2pix(input_shape=None, heads=1, dim=64, down_blocks=8, downsamplings=4, norm_type='batchnorm', activation='tanh'):
+def pix2pix(input_shape=None, heads=1, dim=64, down_blocks=8, downsamplings=4, norm_type='batchnorm'):
 
     if input_shape is None:
         input_shape = (None, None, 3)
@@ -101,7 +101,7 @@ def pix2pix(input_shape=None, heads=1, dim=64, down_blocks=8, downsamplings=4, n
             up_stack.append(dict(filters=dim, kernel_size=4, apply_dropout=True, norm_type=norm_type))
         else:
             up_stack.append(dict(filters=dim, kernel_size=4, apply_dropout=False, norm_type=norm_type))
-        if i >= downsamplings - 1:
+        if i >= down_blocks - downsamplings - 1:
             dim //= 2
 
     # down_stack = [
@@ -152,7 +152,7 @@ def pix2pix(input_shape=None, heads=1, dim=64, down_blocks=8, downsamplings=4, n
                                            strides=2,
                                            padding='same',
                                            kernel_initializer=initializer,
-                                           activation=activation)
+                                           activation='tanh')
     x = last(x)
 
     return tf.keras.Model(inputs=input_layer, outputs=x)

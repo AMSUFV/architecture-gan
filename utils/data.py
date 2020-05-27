@@ -1,6 +1,7 @@
 # TODO: add a 'Deprecated' folder to store the unused scripts once refactoring is done
 import glob
 import os
+
 import tensorflow as tf
 from functools import reduce
 from utils import preprocessing
@@ -117,11 +118,11 @@ def get_simple_dataset(width, height, *paths):
         .batch(1)
 
 
-def validate(model, width, height):
+def validate(model, width, height, down_blocks):
     if model.lower() == 'pix2pix':
-        if width % 2**pix2pix['down_blocks'] != 0:
+        if width % 2**down_blocks != 0:
             raise Exception("Width exception. The image won't make it through the bottleneck.")
-        elif height % 2**pix2pix['down_blocks'] != 0:
+        elif height % 2**down_blocks != 0:
             raise Exception("Height exception. The image won't make it through the bottleneck.")
         else:
             pass

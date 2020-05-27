@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-width, height = 512, 384
+width, height = 512, 512
 resize_factor = 1.3
 # Normalization boundaries
 a, b = -1, 1
@@ -50,8 +50,8 @@ def load(path):
 
 
 def jitter(images):
-    resized = resize(images, int(height * resize_factor), int(width * resize_factor))
-    cropped = random_crop(resized)
+    # resized = resize(images, int(height * resize_factor), int(width * resize_factor))
+    cropped = random_crop(images)
     if tf.random.uniform(()) > 0.5:
         return tf.image.flip_left_right(cropped)
     return cropped
