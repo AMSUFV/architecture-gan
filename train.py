@@ -78,6 +78,7 @@ train, val = data.get_dataset(args.dataset_dir, args.training, *ds_args)
 # model
 model_args = [(None, None, 3), args.norm_type, heads]
 model = get_model(args.model, args.training, *model_args)
+model.summary()
 
 # logs
 time = datetime.now().strftime('%Y%m%d-%H%M%S')
@@ -88,7 +89,9 @@ model_dir = f'/{args.model}/{args.training}/'
 model_dir += f't{temples}-{resolution}-buffer{args.buffer_size}-batch{args.batch_size}/{time}'
 log_path = os.path.join(os.getcwd(), args.log_dir + model_dir)
 
+# training
 model.fit(train, args.epochs, path=log_path, log_images=args.log_images, frequency=args.frequency)
 
+# saving
 model_name = '.'.join([resolution, args.model, args.training, f't{temples}'])
 model.save(f'{model_name}.h5')

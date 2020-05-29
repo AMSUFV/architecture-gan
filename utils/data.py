@@ -36,8 +36,8 @@ def get_dataset(path, option, *args):
 
     elif option == 'color_assisted':
         x_path = path + path_temples_ruins
-        y_path = path + path_temples_colors
-        z_path = path + path_temples
+        y_path = path + path_temples
+        z_path = path + path_temples_colors
         return reconstruction(*args, x_path, y_path, z_path)
 
     elif option in ['masking', 'de-masking']:

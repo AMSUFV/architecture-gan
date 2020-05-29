@@ -115,4 +115,5 @@ class Assisted(Pix2Pix):
                     self.write(d_dict, step=self.g_optimizer.iterations, name='d_losses')
 
                 if log_images and i % frequency == 0:
+                    images['gx'] = tf.squeeze(images['gx'], axis=0)
                     self.write(images, step=i, name='images', dtype='image')
