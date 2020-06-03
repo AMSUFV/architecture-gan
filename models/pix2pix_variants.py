@@ -34,6 +34,8 @@ class Pix2Pix:
             else:
                 w_func = tf.summary.scalar
             for name, data in metrics_dict.items():
+                if dtype == 'image':
+                    data = data * 0.5 + 0.5
                 w_func(name, data, step=step)
 
     @tf.function

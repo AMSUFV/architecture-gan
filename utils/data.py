@@ -114,8 +114,7 @@ def get_simple_dataset(width, height, *paths):
                     for path in paths]
     file_dataset = tf.data.Dataset.zip(tuple(file_dataset))
 
-    return file_dataset.map(preprocessing.load_test_images, num_parallel_calls=tf.data.experimental.AUTOTUNE)\
-        .batch(1)
+    return file_dataset.map(preprocessing.load_images, num_parallel_calls=tf.data.experimental.AUTOTUNE).batch(1)
 
 
 def validate(model, width, height, down_blocks):
