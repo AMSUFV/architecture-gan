@@ -43,6 +43,10 @@ def load_test_images(*paths):
     return tf.unstack(images, num=images.shape[0])
 
 
+def load_images_and_text(embedding, *paths):
+    pass
+
+
 def load(path):
     file = tf.io.read_file(tf.squeeze(path))
     image = tf.io.decode_png(file, channels=3)

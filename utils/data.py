@@ -1,12 +1,16 @@
-# TODO: add a 'Deprecated' folder to store the unused scripts once refactoring is done
 import glob
 import os
-
 import tensorflow as tf
-from functools import reduce
-from utils import preprocessing
 
-path_dataset = 'dataset'
+from datetime import datetime
+from functools import reduce
+from utils import preprocessing, text
+
+seed = datetime.now().microsecond
+tf.random.set_seed(seed)
+
+path_texts = '/text'
+
 path_temples = '/temples'
 path_temples_ruins = '/temples_ruins'
 path_temples_colors = '/colors_temples'
@@ -67,7 +71,7 @@ def get_dataset(path, option, *args):
 
 
 def reconstruction(temples, split=0.25, batch_size=1, buffer_size=400, *paths):
-    files = list(map(lambda x: simple(x, paths), temples))
+    files = list(map(lambda x: get_unique(x, paths), temples))
     files = reduce(concat, files)
 
     # dataset size
@@ -84,7 +88,7 @@ def reconstruction(temples, split=0.25, batch_size=1, buffer_size=400, *paths):
     return train, val
 
 
-def simple(number, paths):
+def get_unique(number, paths):
     pattern = glob_pattern.format(number)
     if type(paths[0]) == list:  # in case several glob patterns are needed
         paths = [[path + pattern for path in path_list] for path_list in paths]
@@ -104,6 +108,23 @@ def train_val_split(dataset, split, size, buffer_size):
     train = dataset.skip(round(size * split))
     val = dataset.take(round(size * split))
     return train, val
+
+
+def get_embeddings(temples, path):
+    # unique embeddings for each temple
+    embeddings = list(map(lambda x: get_unique_embeddings(x, path), temples))
+    # repetition
+    pass
+
+
+def get_unique_embeddings(number, path):
+    file_path = path + path_texts + f'/textos_parrafos/caso{number}.sent'
+
+    embeddings = []
+    with open(file_path, 'r') as file:
+        for line in file:
+            embeddings.append(text.tokenize(line))
+    return tf.concat(embeddings, axis=1)
 
 
 def get_simple_dataset(width, height, *paths):
