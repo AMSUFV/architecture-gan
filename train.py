@@ -30,7 +30,8 @@ ds.add_argument('--training', default='reconstruction', choices=['color_assisted
                                                                  'segmentation',
                                                                  'de-segmentation',
                                                                  'masking',
-                                                                 'de-masking'
+                                                                 'de-masking',
+                                                                 'text_assisted',
                                                                  ])
 ds.add_argument('--dataset_dir', default='dataset/')
 ds.add_argument('--temples', type=int, nargs='+')
@@ -47,7 +48,7 @@ args = ps.parse_args()
 # making sure the image will make it through the bottleneck
 data.validate(args.model, args.img_width, args.img_height, args.down_blocks)
 
-# preprocessing setup
+# pre-processing setup
 preprocessing.height = args.img_height
 preprocessing.width = args.img_width
 img_format = args.img_format.strip('.').lower()
@@ -61,7 +62,7 @@ elif args.training == 'masking':
 else:
     data.repetitions = [1, args.repeat]
 
-# absolut path check
+# absolute path check
 if not os.path.isabs(args.log_dir):
     args.log_dir = os.path.abspath(args.log_dir)
 

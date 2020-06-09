@@ -7,7 +7,6 @@ from functools import reduce
 from utils import preprocessing, text
 
 seed = datetime.now().microsecond
-tf.random.set_seed(seed)
 
 path_texts = '/text'
 
@@ -66,17 +65,24 @@ def get_dataset(path, option, *args):
         y_path = path + path_temples
         return reconstruction(*args, x_path, y_path)
 
+    elif option == 'text_assisted':
+        x_path = path + path_temples_ruins
+        y_path = path + path_temples
+        text_path = path + path_texts
+        return reconstruction(*args, x_path, y_path, descriptions=True, text_path=text_path)
+
     else:
         raise Exception('Option not supported. Run train.py -h to see the supported options.')
 
 
-def reconstruction(temples, split=0.25, batch_size=1, buffer_size=400, *paths):
-    files = list(map(lambda x: get_unique(x, paths), temples))
-    files = reduce(concat, files)
+def reconstruction(temples, split=0.25, batch_size=1, buffer_size=400, *paths, **kwargs):
 
     # dataset size
     size = list(map(lambda x: len(glob.glob(paths[0] + glob_pattern.format(x))), temples))
     size = reduce((lambda x, y: max(x, y)), size)
+
+    files = list(map(lambda x: get_unique(x, paths), temples))
+    files = reduce(concat, files)
 
     train_files, val_files = train_val_split(files, split, size, buffer_size)
 
@@ -84,6 +90,13 @@ def reconstruction(temples, split=0.25, batch_size=1, buffer_size=400, *paths):
         .batch(batch_size)
     val = val_files.map(preprocessing.load_images, num_parallel_calls=tf.data.experimental.AUTOTUNE)\
         .batch(batch_size)
+
+    # embeddings
+    if kwargs['descriptions']:
+        embeddings = get_embeddings(temples, kwargs['text_path'], repeat=size//len(temples))
+        train_emb, val_emb = train_val_split(embeddings, split, size, buffer_size)
+        train = tf.data.Dataset.zip((train, train_emb))
+        val = tf.data.Dataset.zip((val, val_emb))
 
     return train, val
 
@@ -104,27 +117,28 @@ def concat(a, b):
 
 
 def train_val_split(dataset, split, size, buffer_size):
-    dataset = dataset.shuffle(buffer_size)
+    dataset = dataset.shuffle(buffer_size, seed=seed)
     train = dataset.skip(round(size * split))
     val = dataset.take(round(size * split))
     return train, val
 
 
-def get_embeddings(temples, path):
-    # unique embeddings for each temple
-    embeddings = list(map(lambda x: get_unique_embeddings(x, path), temples))
-    # repetition
-    pass
+def get_embeddings(temples, path, repeat):
 
+    dataset = []
+    for temple in temples:
+        file_path = path + f'caso{temple}.sent'
 
-def get_unique_embeddings(number, path):
-    file_path = path + path_texts + f'/textos_parrafos/caso{number}.sent'
+        embeddings = []
+        with open(file_path, 'r') as file:
+            for line in file:
+                embeddings.append(text.tokenize(line))
+        embeddings = tf.stack(embeddings)
+        embeddings = tf.reduce_mean(embeddings)
+        embeddings = tf.repeat(embeddings, repeat, axis=0)
+        dataset.append(tf.data.Dataset.from_tensor_slices(embeddings))
 
-    embeddings = []
-    with open(file_path, 'r') as file:
-        for line in file:
-            embeddings.append(text.tokenize(line))
-    return tf.concat(embeddings, axis=1)
+    return reduce(concat, dataset)
 
 
 def get_simple_dataset(width, height, *paths):

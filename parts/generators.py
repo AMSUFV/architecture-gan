@@ -106,26 +106,6 @@ def pix2pix(input_shape=None, heads=1, dim=64, down_blocks=8, downsamplings=4, n
         if i >= down_blocks - downsamplings - 1:
             dim //= 2
 
-    # down_stack = [
-    #     dict(filters=64, kernel_size=4, apply_norm=False),
-    #     dict(filters=128, kernel_size=4, apply_norm=True, norm_type=norm_type),
-    #     dict(filters=256, kernel_size=4, apply_norm=True, norm_type=norm_type),
-    #     dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
-    #     dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
-    #     dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
-    #     dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
-    #     dict(filters=512, kernel_size=4, apply_norm=True, norm_type=norm_type),
-    # ]
-    #
-    # up_stack = [
-    #     dict(filters=512, kernel_size=4, apply_dropout=True, norm_type=norm_type),
-    #     dict(filters=512, kernel_size=4, apply_dropout=True, norm_type=norm_type),
-    #     dict(filters=512, kernel_size=4, apply_dropout=True, norm_type=norm_type),
-    #     dict(filters=512, kernel_size=4, apply_dropout=False, norm_type=norm_type),
-    #     dict(filters=256, kernel_size=4, apply_dropout=False, norm_type=norm_type),
-    #     dict(filters=128, kernel_size=4, apply_dropout=False, norm_type=norm_type),
-    #     dict(filters=64, kernel_size=4, apply_dropout=False, norm_type=norm_type),
-    # ]
 
     if heads == 1:
         x = input_layer = tf.keras.layers.Input(shape=input_shape)
