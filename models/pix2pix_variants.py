@@ -91,7 +91,7 @@ class Assisted(Pix2Pix):
     @tf.function
     def train_g(self, x, y, z):
         with tf.GradientTape() as t:
-            gx = self.generator([x, z], training=True),
+            gx = self.generator([x, z], training=True)
             dgx = self.discriminator([x, gx], training=True)
             g_loss, l1_loss = self.loss_g(y, gx, dgx)
 
@@ -124,7 +124,7 @@ class Assisted(Pix2Pix):
 
 class TextAssisted(Pix2Pix):
     def __init__(self, input_shape=(None, None, 3), norm_type='batchnorm', *args):
-        super().__init__(input_shape=(None, None, 3), norm_type='batchnorm', *args)
+        super().__init__(input_shape=input_shape, norm_type=norm_type, *args)
         self.generator = text_generator(input_shape=input_shape, norm_type=norm_type)
 
     @tf.function
@@ -134,3 +134,33 @@ class TextAssisted(Pix2Pix):
         x_image, x_text = x
         images = dict(x=x_image, y=y, gx=gx)
         return g_dict, d_dict, images
+
+    @tf.function
+    def train_g(self, x, y):
+        with tf.GradientTape() as t:
+            gx = self.generator(x, training=True)
+            image, text = x
+            dgx = self.discriminator([image, gx], training=True)
+            g_loss, l1_loss = self.loss_g(y, gx, dgx)
+
+        g_grad = t.gradient(g_loss, self.generator.trainable_variables)
+        self.g_optimizer.apply_gradients(zip(g_grad, self.generator.trainable_variables))
+
+        return gx, dict(g_loss=g_loss,
+                        l1_loss=l1_loss)
+
+    @tf.function
+    def train_d(self, x, gx, y):
+        with tf.GradientTape() as t:
+            image, text = x
+            dy = self.discriminator([image, y], training=True)
+            dgx = self.discriminator([image, gx], training=True)
+            y_loss, gx_loss = self.loss_d(dy, dgx)
+            d_loss = y_loss + gx_loss
+
+        d_grad = t.gradient(d_loss, self.discriminator.trainable_variables)
+        self.d_optimizer.apply_gradients(zip(d_grad, self.discriminator.trainable_variables))
+
+        return dict(y_loss=y_loss,
+                    gx_loss=gx_loss,
+                    d_loss=d_loss)
