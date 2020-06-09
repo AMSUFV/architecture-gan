@@ -2,6 +2,7 @@ import tensorflow as tf
 
 from parts.discriminators import patch as discriminator
 from parts.generators import pix2pix as generator
+from parts.generators import text2pix as text_generator
 from parts import losses
 
 
@@ -119,3 +120,17 @@ class Assisted(Pix2Pix):
                 if log_images and i % frequency == 0:
                     images['gx'] = tf.squeeze(images['gx'], axis=0)
                     self.write(images, step=i, name='images', dtype='image')
+
+
+class TextAssisted(Pix2Pix):
+    def __init__(self, input_shape=(None, None, 3), norm_type='batchnorm', *args):
+        super().__init__(input_shape=(None, None, 3), norm_type='batchnorm', *args)
+        self.generator = text_generator(input_shape=input_shape, norm_type=norm_type)
+
+    @tf.function
+    def train_step(self, x, y):
+        gx, g_dict = self.train_g(x, y)
+        d_dict = self.train_d(x, gx, y)
+        x_image, x_text = x
+        images = dict(x=x_image, y=y, gx=gx)
+        return g_dict, d_dict, images

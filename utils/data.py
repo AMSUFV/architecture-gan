@@ -8,7 +8,7 @@ from utils import preprocessing, text
 
 seed = datetime.now().microsecond
 
-path_texts = '/text'
+path_texts = '/textos_frases'
 
 path_temples = '/temples'
 path_temples_ruins = '/temples_ruins'
