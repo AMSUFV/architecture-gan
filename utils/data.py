@@ -95,6 +95,8 @@ def reconstruction(temples, split=0.25, batch_size=1, buffer_size=400, *paths, *
     if kwargs['descriptions']:
         embeddings = get_embeddings(temples, kwargs['text_path'], repeat=size//len(temples))
         train_emb, val_emb = train_val_split(embeddings, split, size, buffer_size)
+        train_emb = train_emb.batch(batch_size)
+        val_emb = val_emb.batch(batch_size)
         train = tf.data.Dataset.zip((train, train_emb))
         val = tf.data.Dataset.zip((val, val_emb))
 
