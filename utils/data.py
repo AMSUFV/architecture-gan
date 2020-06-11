@@ -136,7 +136,7 @@ def get_embeddings(temples, path, repeat):
             for line in file:
                 embeddings.append(text.tokenize(line))
         embeddings = tf.stack(embeddings)
-        embeddings = tf.reduce_mean(embeddings)
+        embeddings = tf.reduce_mean(embeddings, axis=0)
         embeddings = tf.repeat(embeddings, repeat, axis=0)
         dataset.append(tf.data.Dataset.from_tensor_slices(embeddings))
 
