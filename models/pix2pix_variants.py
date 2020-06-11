@@ -123,24 +123,23 @@ class Assisted(Pix2Pix):
 
 
 class TextAssisted(Pix2Pix):
-    def __init__(self, input_shape=(None, None, 3), norm_type='batchnorm', *args):
-        super().__init__(input_shape=input_shape, norm_type=norm_type, *args)
+    def __init__(self, input_shape=(None, None, 3), norm_type='batchnorm', heads=1):
+        super().__init__(input_shape=input_shape, norm_type=norm_type, heads=heads)
         self.generator = text_generator(input_shape=input_shape, norm_type=norm_type)
 
     @tf.function
     def train_step(self, x, y):
-        gx, g_dict = self.train_g(x, y)
-        d_dict = self.train_d(x, gx, y)
-        x_image, x_text = x
-        images = dict(x=x_image, y=y, gx=gx)
+        inp, tar = x
+        gx, g_dict = self.train_g(inp, tar, y)
+        d_dict = self.train_d(inp, gx, tar)
+        images = dict(x=inp, y=tar, gx=gx)
         return g_dict, d_dict, images
 
     @tf.function
-    def train_g(self, x, y):
+    def train_g(self, x, y, text):
         with tf.GradientTape() as t:
-            gx = self.generator(x, training=True)
-            image, text = x
-            dgx = self.discriminator([image, gx], training=True)
+            gx = self.generator((x, text), training=True)
+            dgx = self.discriminator((x, y), training=True)
             g_loss, l1_loss = self.loss_g(y, gx, dgx)
 
         g_grad = t.gradient(g_loss, self.generator.trainable_variables)
@@ -152,9 +151,8 @@ class TextAssisted(Pix2Pix):
     @tf.function
     def train_d(self, x, gx, y):
         with tf.GradientTape() as t:
-            image, text = x
-            dy = self.discriminator([image, y], training=True)
-            dgx = self.discriminator([image, gx], training=True)
+            dy = self.discriminator((x, y), training=True)
+            dgx = self.discriminator((x, gx), training=True)
             y_loss, gx_loss = self.loss_d(dy, dgx)
             d_loss = y_loss + gx_loss
 

@@ -8,7 +8,7 @@ from utils import preprocessing, text
 
 seed = datetime.now().microsecond
 
-path_texts = '/textos_frases'
+path_texts = '/textos_parrafos'
 
 path_temples = '/temples'
 path_temples_ruins = '/temples_ruins'
@@ -129,14 +129,14 @@ def get_embeddings(temples, path, repeat):
 
     dataset = []
     for temple in temples:
-        file_path = path + f'caso{temple}.sent'
+        file_path = path + f'/caso{temple + 1}.sent.txt'
 
         embeddings = []
         with open(file_path, 'r') as file:
             for line in file:
                 embeddings.append(text.tokenize(line))
         embeddings = tf.stack(embeddings)
-        embeddings = tf.reduce_mean(embeddings)
+        embeddings = tf.reduce_mean(embeddings, axis=0)
         embeddings = tf.repeat(embeddings, repeat, axis=0)
         dataset.append(tf.data.Dataset.from_tensor_slices(embeddings))
 

@@ -10,7 +10,7 @@ from utils import data
 ps = argparse.ArgumentParser()
 
 training = ps.add_argument_group('training')
-training.add_argument('--epochs', type=int, default=100)
+training.add_argument('--epochs', type=int, default=50)
 training.add_argument('--log_dir', default='logs/')
 training.add_argument('--log_images', default=True)
 training.add_argument('--frequency', default=1)
