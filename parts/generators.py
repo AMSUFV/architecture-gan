@@ -39,11 +39,11 @@ def resnet(input_shape=(512, 512, 3), dim=64, downsamplings=2, res_blocks=9):
         filters = res_x.shape[-1]
         h = res_x
 
-        h = tf.keras.layers.Conv2D(filters=filters, kernel_size=3, padding='same')(h)
+        h = tf.keras.layers.Conv2D(filters=filters, kernel_size=3, padding="same")(h)
         h = tfa.layers.InstanceNormalization()(h)
         h = tf.keras.layers.ReLU()(h)
 
-        h = tf.keras.layers.Conv2D(filters=filters, kernel_size=3, padding='same')(h)
+        h = tf.keras.layers.Conv2D(filters=filters, kernel_size=3, padding="same")(h)
         h = tfa.layers.InstanceNormalization()(h)
 
         return tf.keras.layers.add([res_x, h])
@@ -52,7 +52,7 @@ def resnet(input_shape=(512, 512, 3), dim=64, downsamplings=2, res_blocks=9):
     x = inputs = tf.keras.Input(shape=input_shape)
 
     # c7s1-64 - 7x7 Convolution-InstanceNorm-ReLU (stride=1)
-    x = tf.keras.layers.Conv2D(filters=dim, kernel_size=7, strides=1, padding='same')(x)
+    x = tf.keras.layers.Conv2D(filters=dim, kernel_size=7, strides=1, padding="same")(x)
     x = tfa.layers.InstanceNormalization()(x)
     x = tf.keras.layers.ReLU()(x)
 
@@ -60,7 +60,9 @@ def resnet(input_shape=(512, 512, 3), dim=64, downsamplings=2, res_blocks=9):
     # d256 - 3x3 Convolution-InstanceNorm-ReLU (kernel_size=3, strides=2)
     for _ in range(downsamplings):
         dim *= 2
-        x = tf.keras.layers.Conv2D(filters=dim, kernel_size=3, strides=2, padding='same')(x)
+        x = tf.keras.layers.Conv2D(
+            filters=dim, kernel_size=3, strides=2, padding="same"
+        )(x)
         x = tfa.layers.InstanceNormalization()(x)
         x = tf.keras.layers.ReLU()(x)
 
@@ -72,19 +74,28 @@ def resnet(input_shape=(512, 512, 3), dim=64, downsamplings=2, res_blocks=9):
     # u64 - 3x3 fractional-strided-Convolution-InstanceNorm-ReLU
     for _ in range(downsamplings):
         dim //= 2
-        x = tf.keras.layers.Conv2DTranspose(filters=128, kernel_size=3, strides=2, padding='same')(x)
+        x = tf.keras.layers.Conv2DTranspose(
+            filters=128, kernel_size=3, strides=2, padding="same"
+        )(x)
         x = tfa.layers.InstanceNormalization()(x)
         x = tf.keras.layers.ReLU()(x)
 
     # c7s1-3 7x7 Convolution-InstanceNorm-ReLU (stride=1)
-    x = tf.keras.layers.Conv2D(filters=3, kernel_size=7, strides=1, padding='same')(x)
+    x = tf.keras.layers.Conv2D(filters=3, kernel_size=7, strides=1, padding="same")(x)
     x = tfa.layers.InstanceNormalization()(x)
     x = tf.tanh(x)
 
     return tf.keras.Model(inputs=inputs, outputs=x)
 
 
-def pix2pix(input_shape=None, heads=1, dim=64, down_blocks=8, downsamplings=4, norm_type='batchnorm'):
+def pix2pix(
+    input_shape=None,
+    heads=1,
+    dim=64,
+    down_blocks=8,
+    downsamplings=4,
+    norm_type="batchnorm",
+):
 
     if input_shape is None:
         input_shape = (None, None, 3)
@@ -94,18 +105,27 @@ def pix2pix(input_shape=None, heads=1, dim=64, down_blocks=8, downsamplings=4, n
     for i in range(down_blocks - 1):
         if i < downsamplings - 1:
             dim *= 2
-        down_stack.append(dict(filters=dim, kernel_size=4, apply_norm=True, norm_type=norm_type))
+        down_stack.append(
+            dict(filters=dim, kernel_size=4, apply_norm=True, norm_type=norm_type)
+        )
 
     # dropout for the first 3 layers
     up_stack = []
     for i in range(down_blocks - 1):
         if i < 3:
-            up_stack.append(dict(filters=dim, kernel_size=4, apply_dropout=True, norm_type=norm_type))
+            up_stack.append(
+                dict(
+                    filters=dim, kernel_size=4, apply_dropout=True, norm_type=norm_type
+                )
+            )
         else:
-            up_stack.append(dict(filters=dim, kernel_size=4, apply_dropout=False, norm_type=norm_type))
+            up_stack.append(
+                dict(
+                    filters=dim, kernel_size=4, apply_dropout=False, norm_type=norm_type
+                )
+            )
         if i >= down_blocks - downsamplings - 1:
             dim //= 2
-
 
     if heads == 1:
         x = input_layer = tf.keras.layers.Input(shape=input_shape)
@@ -118,29 +138,42 @@ def pix2pix(input_shape=None, heads=1, dim=64, down_blocks=8, downsamplings=4, n
     # down-sampling
     skips = []
     for block in down_stack:
-        x = downsample(x, block['filters'], block['kernel_size'], apply_norm=block['apply_norm'])
+        x = downsample(
+            x, block["filters"], block["kernel_size"], apply_norm=block["apply_norm"]
+        )
         skips.append(x)
 
     skips = reversed(skips[:-1])
 
     # up-sampling and connecting
     for up, skip in zip(up_stack, skips):
-        x = upsample(x, up['filters'], up['kernel_size'], apply_dropout=up['apply_dropout'])
+        x = upsample(
+            x, up["filters"], up["kernel_size"], apply_dropout=up["apply_dropout"]
+        )
         x = tf.keras.layers.Concatenate()([x, skip])
 
-    initializer = tf.random_normal_initializer(0., 0.02)
-    last = tf.keras.layers.Conv2DTranspose(filters=3,
-                                           kernel_size=4,
-                                           strides=2,
-                                           padding='same',
-                                           kernel_initializer=initializer,
-                                           activation='tanh')
+    initializer = tf.random_normal_initializer(0.0, 0.02)
+    last = tf.keras.layers.Conv2DTranspose(
+        filters=3,
+        kernel_size=4,
+        strides=2,
+        padding="same",
+        kernel_initializer=initializer,
+        activation="tanh",
+    )
     x = last(x)
 
     return tf.keras.Model(inputs=input_layer, outputs=x)
 
 
-def text2pix(input_shape=None, embedding_shape=768, dim=64, down_blocks=8, downsamplings=4, norm_type='batchnorm'):
+def text2pix(
+    input_shape=None,
+    embedding_shape=768,
+    dim=64,
+    down_blocks=8,
+    downsamplings=4,
+    norm_type="batchnorm",
+):
 
     if input_shape is None:
         input_shape = (None, None, 3)
@@ -154,15 +187,21 @@ def text2pix(input_shape=None, embedding_shape=768, dim=64, down_blocks=8, downs
     for i in range(down_blocks - 1):
         if i < downsamplings - 1:
             dim *= 2
-        down_stack.append(dict(filters=dim, kernel_size=4, apply_norm=True, norm_type=norm_type))
+        down_stack.append(
+            dict(filters=dim, kernel_size=4, apply_norm=True, norm_type=norm_type)
+        )
 
-    concat = tf.keras.layers.Concatenate()([input_embedding, input_embedding, input_embedding, input_embedding])
+    concat = tf.keras.layers.Concatenate()(
+        [input_embedding, input_embedding, input_embedding, input_embedding]
+    )
     reshaped = tf.keras.layers.Reshape((2, 2, embedding_shape))(concat)
 
     # down-sampling
     skips = []
     for i, block in enumerate(down_stack):
-        x = downsample(x, block['filters'], block['kernel_size'], apply_norm=block['apply_norm'])
+        x = downsample(
+            x, block["filters"], block["kernel_size"], apply_norm=block["apply_norm"]
+        )
         if i == len(down_stack) - 1:
             x = tf.keras.layers.Concatenate()([x, reshaped])
         skips.append(x)
@@ -171,24 +210,36 @@ def text2pix(input_shape=None, embedding_shape=768, dim=64, down_blocks=8, downs
     up_stack = []
     for i in range(down_blocks - 1):
         if i < 3:
-            up_stack.append(dict(filters=dim, kernel_size=4, apply_dropout=True, norm_type=norm_type))
+            up_stack.append(
+                dict(
+                    filters=dim, kernel_size=4, apply_dropout=True, norm_type=norm_type
+                )
+            )
         else:
-            up_stack.append(dict(filters=dim, kernel_size=4, apply_dropout=False, norm_type=norm_type))
+            up_stack.append(
+                dict(
+                    filters=dim, kernel_size=4, apply_dropout=False, norm_type=norm_type
+                )
+            )
         if i >= down_blocks - downsamplings - 1:
             dim //= 2
 
     # up-sampling and connecting
     for up, skip in zip(up_stack, skips):
-        x = upsample(x, up['filters'], up['kernel_size'], apply_dropout=up['apply_dropout'])
+        x = upsample(
+            x, up["filters"], up["kernel_size"], apply_dropout=up["apply_dropout"]
+        )
         x = tf.keras.layers.Concatenate()([x, skip])
 
-    initializer = tf.random_normal_initializer(0., 0.02)
-    last = tf.keras.layers.Conv2DTranspose(filters=3,
-                                           kernel_size=4,
-                                           strides=2,
-                                           padding='same',
-                                           kernel_initializer=initializer,
-                                           activation='tanh')
+    initializer = tf.random_normal_initializer(0.0, 0.02)
+    last = tf.keras.layers.Conv2DTranspose(
+        filters=3,
+        kernel_size=4,
+        strides=2,
+        padding="same",
+        kernel_initializer=initializer,
+        activation="tanh",
+    )
     x = last(x)
 
     return tf.keras.Model(inputs=[input_image, input_embedding], outputs=x)
