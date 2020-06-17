@@ -15,9 +15,6 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
-LAMBDA = 100
-
-
 """
 ## Create the preprocessing functions
 """
@@ -34,8 +31,9 @@ def load_train(image_path):
 
 def load_test(image_path):
     stack = load(image_path)
-    stack = resize(stack, IMG_HEIGHT, IMG_WIDTH)
+    stack = resize(stack, HEIGHT, WIDTH)
     stack = normalize(stack)
+    stack = tf.unstack(stack, num=stack.shape[0])
 
     return stack
 
@@ -70,9 +68,9 @@ def normalize(stack):
 
 def random_jitter(stack):
     # random jitter is applied by upscaling to 110% the size
-    stack = resize(stack, int(IMG_HEIGHT * 1.1), int(IMG_HEIGHT * 1.1))
+    stack = resize(stack, int(WIDTH * 1.1), int(HEIGHT * 1.1))
     # cropping randomnly back to the desired size
-    stack = tf.image.random_crop(stack, size=[stack.shape[0], IMG_HEIGHT, IMG_WIDTH, 3])
+    stack = tf.image.random_crop(stack, size=[stack.shape[0], HEIGHT, WIDTH, 3])
     # and performing random mirroring
     if tf.random.uniform(()) > 0.5:
         return tf.image.flip_left_right(stack)
@@ -91,6 +89,7 @@ class Downscale(layers.Layer):
         self.apply_norm = apply_norm
         self.slope = slope
         w_init = tf.random_normal_initializer(0.0, 0.02)
+
         self.conv = layers.Conv2D(
             filters=filters,
             kernel_size=size,
@@ -99,12 +98,14 @@ class Downscale(layers.Layer):
             kernel_initializer=w_init,
             use_bias=False,
         )
+        if apply_norm:
+            self.batch_norm = layers.BatchNormalization()
 
     def call(self, inputs, **kwargs):
         x = self.conv(inputs)
         if self.apply_norm:
-            x = layers.BatchNormalization()(x)
-        return layers.LeakyReLU(self.slope)(x)
+            x = self.batch_norm(x)
+        return tf.nn.leaky_relu(x, alpha=self.slope)
 
 
 class Upscale(layers.Layer):
@@ -121,14 +122,14 @@ class Upscale(layers.Layer):
             kernel_initializer=w_init,
             use_bias=False,
         )
+        self.batch_norm = layers.BatchNormalization()
 
     def call(self, inputs, **kwargs):
         x = self.t_conv(inputs)
-        x = layers.BatchNormalization()(x)
+        x = self.batch_norm(x)
         if self.apply_droput:
-            x = layers.Dropout(self.rate)(x)
-        return layers.ReLU()(x)
-
+            x = tf.nn.dropout(x, rate=self.rate)
+        return tf.nn.relu(x)
 
 """
 ## Build the generator 
@@ -234,7 +235,7 @@ def loss_g(y, gx, dgx):
 def loss_d(dy, dgx):
     loss_y = bce(tf.ones_like(dy), dy)
     loss_gx = bce(tf.zeros_like(dgx), dgx)
-    return loss_y + loss_gx
+    return (loss_y + loss_gx) / 2
 
 
 """
@@ -293,12 +294,11 @@ class Pix2Pix(keras.Model):
 """
 
 # Variables
-WIDTH = HEIGHT = 256
 BUFFER_SIZE = 400
 BATCH_SIZE = 1
+LAMBDA = 100
+WIDTH = HEIGHT = 256
 
-
-# Facades dataset
 url = "https://people.eecs.berkeley.edu/~tinghuiz/projects/pix2pix/datasets/facades.tar.gz"
 path = keras.utils.get_file("facades.tar.gz", origin=url, extract=True)
 path = os.path.join(os.path.dirname(path), "facades/")
@@ -307,13 +307,6 @@ train = tf.data.Dataset.list_files(path + "train/*.jpg")
 train = train.map(load_train, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 train = train.shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
 
-val = tf.data.Dataset.list_files(path + "val/*.jpg")
-val = val.map(load_train, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-val = val.shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
-
-test = tf.data.Dataset.list_files(path + "test/*.jpg")
-test = test.map(load_test, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-test = test.batch(BATCH_SIZE)
 
 """
 ## Train the end-to-end model
@@ -321,13 +314,16 @@ test = test.batch(BATCH_SIZE)
 
 generator = build_generator()
 discriminator = build_discriminator()
+generator.summary()
+discriminator.summary()
+
 
 pix2pix = Pix2Pix(generator, discriminator)
 pix2pix.compile(
-    g_optimizer=keras.optimizers.Adam(learning_rate=2e-4, beta_1=0.5),
-    d_optimizer=keras.optimizers.Adam(learning_rate=2e-4, beta_1=0.5),
+    g_optimizer=keras.optimizers.Adam(learning_rate=2e-4, beta_1=0.5, beta_2=0.999),
+    d_optimizer=keras.optimizers.Adam(learning_rate=2e-4, beta_1=0.5, beta_2=0.999),
     g_loss_fn=loss_g,
     d_loss_fn=loss_d,
 )
 
-pix2pix.fit(train, epochs=150, validation_data=val)
+pix2pix.fit(train, epochs=5)
