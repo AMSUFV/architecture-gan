@@ -1,9 +1,9 @@
 """
 Title: Pix2Pix
 Author: [AMSUFV](https://github.com/AMSUFV)
-Date created:
-Last modified:
-Description: Pix2Pix implementation
+Date created: 2020/06/17
+Last modified: 2020/06/17
+Description: Pix2Pix implementation subclassing keras.Model.
 """
 
 """
@@ -79,7 +79,7 @@ def random_jitter(stack):
 
 
 """
-## Downscale and upscale blocks
+## Create the building blocks
 """
 
 
@@ -131,14 +131,15 @@ class Upscale(layers.Layer):
             x = tf.nn.dropout(x, rate=self.rate)
         return tf.nn.relu(x)
 
+
 """
-## Build the generator 
+## Build the generator
 """
 
 
 def build_generator():
     initializer = tf.random_normal_initializer(0.0, 0.02)
-    input_image = x = layers.Input(shape=(None, None, 3))
+    input_image = x = layers.Input(shape=(None, None, CHANNELS))
 
     down_stack = [
         Downscale(64, 4, apply_norm=False),
@@ -185,15 +186,15 @@ def build_generator():
 
 
 """
-## Build the discriminator 
+## Build the discriminator
 """
 
 
 def build_discriminator():
     initializer = tf.random_normal_initializer(0.0, 0.02)
 
-    input_image = layers.Input(shape=(None, None, 3), name="input_image")
-    target_image = layers.Input(shape=(None, None, 3), name="target_image")
+    input_image = layers.Input(shape=(None, None, CHANNELS), name="input_image")
+    target_image = layers.Input(shape=(None, None, CHANNELS), name="target_image")
     x = layers.Concatenate()([input_image, target_image])
 
     x = Downscale(64, 4, apply_norm=False)(x)
@@ -217,25 +218,6 @@ def build_discriminator():
     )(x)
 
     return keras.Model(inputs=[input_image, target_image], outputs=markov_rf)
-
-
-"""
-Define the losses
-"""
-bce = keras.losses.BinaryCrossentropy(from_logits=True)
-
-
-def loss_g(y, gx, dgx):
-    loss_dgx = bce(tf.ones_like(dgx), dgx)
-    loss_l1 = tf.reduce_mean(tf.abs(y - gx))
-    total_loss = loss_dgx + LAMBDA * loss_l1
-    return total_loss, loss_l1
-
-
-def loss_d(dy, dgx):
-    loss_y = bce(tf.ones_like(dy), dy)
-    loss_gx = bce(tf.zeros_like(dgx), dgx)
-    return (loss_y + loss_gx) / 2
 
 
 """
@@ -290,6 +272,25 @@ class Pix2Pix(keras.Model):
 
 
 """
+Define the losses
+"""
+bce = keras.losses.BinaryCrossentropy(from_logits=True)
+
+
+def loss_g(y, gx, dgx):
+    loss_dgx = bce(tf.ones_like(dgx), dgx)
+    loss_l1 = tf.reduce_mean(tf.abs(y - gx))
+    total_loss = loss_dgx + LAMBDA * loss_l1
+    return total_loss, loss_l1
+
+
+def loss_d(dy, dgx):
+    loss_y = bce(tf.ones_like(dy), dy)
+    loss_gx = bce(tf.zeros_like(dgx), dgx)
+    return (loss_y + loss_gx) / 2
+
+
+"""
 ## Prepare the dataset
 """
 
@@ -298,6 +299,7 @@ BUFFER_SIZE = 400
 BATCH_SIZE = 1
 LAMBDA = 100
 WIDTH = HEIGHT = 256
+CHANNELS = 3
 
 url = "https://people.eecs.berkeley.edu/~tinghuiz/projects/pix2pix/datasets/facades.tar.gz"
 path = keras.utils.get_file("facades.tar.gz", origin=url, extract=True)
