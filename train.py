@@ -52,7 +52,7 @@ data.validate(args.model, args.img_width, args.img_height, args.down_blocks)
 preprocessing.height = args.img_height
 preprocessing.width = args.img_width
 img_format = args.img_format.strip('.').lower()
-preprocessing.setup(img_format)
+preprocessing.set_mask()
 
 # data repetition check
 if args.training in ['color_assisted', 'de-masking']:

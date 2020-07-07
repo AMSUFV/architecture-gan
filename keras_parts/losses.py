@@ -4,7 +4,7 @@ from tensorflow import keras
 bce_logits = keras.losses.BinaryCrossentropy(from_logits=True)
 
 
-class Pix2Pix:
+class Pix2PixLosses:
     @staticmethod
     def loss_g(y, gx, dgx):
         dgx_loss = bce_logits(tf.ones_like(dgx), dgx)

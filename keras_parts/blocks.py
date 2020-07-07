@@ -8,7 +8,6 @@ class Downscale(layers.Layer):
         self.apply_norm = apply_norm
         self.slope = slope
         w_init = tf.random_normal_initializer(0.0, 0.02)
-
         self.conv = layers.Conv2D(
             filters=filters,
             kernel_size=size,

@@ -26,6 +26,14 @@ def setup(img_format):
     mask = tf.cast(mask, dtype='float32')
 
 
+def set_mask():
+    global mask
+    red = blue = tf.fill((height, width), 255)
+    green = tf.fill((height, width), 0)
+    mask = tf.stack((red, green, blue), axis=2)
+    mask = tf.cast(mask, dtype='float32')
+
+
 def load_images(*paths):
     images = list(map(load, paths))
     images = tf.stack(images)

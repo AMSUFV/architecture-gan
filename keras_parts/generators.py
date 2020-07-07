@@ -36,7 +36,7 @@ def build_generator(input_shape=(None, None, 3)):
     skips = reversed(skips[:-1])
     for up, skip in zip(up_stack, skips):
         x = up(x)
-        x = layers.Concatenate()([x, skip])
+        x = layers.concatenate([x, skip])
 
     output_image = layers.Conv2DTranspose(
         filters=3,
