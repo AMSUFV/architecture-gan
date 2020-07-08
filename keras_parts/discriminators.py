@@ -4,12 +4,12 @@ from tensorflow.keras import layers
 from .blocks import Downscale
 
 
-def build_discriminator(input_shape=(None, None, 3)):
+def pix2pix_discriminator(input_shape=(None, None, 3)):
     initializer = tf.random_normal_initializer(0.0, 0.02)
 
     input_image = layers.Input(shape=input_shape, name="input_image")
     target_image = layers.Input(shape=input_shape, name="target_image")
-    x = layers.Concatenate()([input_image, target_image])
+    x = layers.concatenate([input_image, target_image])
 
     x = Downscale(64, 4, apply_norm=False)(x)
     x = Downscale(128, 4)(x)

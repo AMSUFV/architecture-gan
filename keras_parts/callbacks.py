@@ -1,8 +1,9 @@
 import tensorflow as tf
 from tensorflow import keras
+from tensorflow.keras import callbacks
 
 
-class ImageSampling(keras.callbacks.Callback):
+class ImageSampling(callbacks.Callback):
     def __init__(self, images, log_dir):
         super(ImageSampling).__init__()
         self.images = images
@@ -20,3 +21,12 @@ class ImageSampling(keras.callbacks.Callback):
                 step=epoch,
                 max_outputs=predictions.shape[0],
             )
+
+
+class Validation(callbacks.Callback):
+    def __init__(self, validation_data, log_dir):
+        super(Validation).__init__()
+        self.validation_data = validation_data
+
+    def on_epoch_end(self, epoch, logs=None):
+        pass

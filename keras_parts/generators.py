@@ -4,9 +4,14 @@ from tensorflow.keras import layers
 from .blocks import Downscale, Upscale
 
 
-def build_generator(input_shape=(None, None, 3)):
+def pix2pix_generator(input_shape=(None, None, 3), assisted=False):
     initializer = tf.random_normal_initializer(0.0, 0.02)
-    input_image = x = layers.Input(shape=input_shape)
+
+    if assisted:
+        input_layer = [layers.Input(shape=input_shape), layers.Input(shape=input_shape)]
+        x = layers.concatenate(input_layer)
+    else:
+        input_layer = x = layers.Input(shape=input_shape)
 
     down_stack = [
         Downscale(64, 4, apply_norm=False),
@@ -48,5 +53,5 @@ def build_generator(input_shape=(None, None, 3)):
     )(x)
 
     return keras.Model(
-        inputs=input_image, outputs=output_image, name="pix2pix_generator"
+        inputs=input_layer, outputs=output_image, name="pix2pix_generator"
     )
