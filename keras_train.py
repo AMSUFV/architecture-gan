@@ -39,20 +39,20 @@ log_dir = os.path.abspath(settings.LOG_DIR) + log_name
 # --- dataset ---
 dataset_dir = os.path.abspath(settings.DATASET_DIR)
 
-# train, val = data.get_dataset(
-#     dataset_dir,
-#     settings.TRAINING,
-#     settings.TEMPLES,
-#     settings.SPLIT,
-#     settings.BATCH_SIZE,
-#     settings.BUFFER_SIZE,
-# )
+train, val = data.get_dataset(
+    dataset_dir,
+    settings.TRAINING,
+    settings.TEMPLES,
+    settings.SPLIT,
+    settings.BATCH_SIZE,
+    settings.BUFFER_SIZE,
+)
 
 # for  testing purposes
-x = y = tf.random.normal((5, settings.IMG_HEIGHT, settings.IMG_WIDTH, 3))
-x = tf.data.Dataset.from_tensor_slices(x).batch(1)
-y = tf.data.Dataset.from_tensor_slices(y).batch(1)
-train = val = tf.data.Dataset.zip((x, y))
+# x = y = tf.random.normal((5, settings.IMG_HEIGHT, settings.IMG_WIDTH, 3))
+# x = tf.data.Dataset.from_tensor_slices(x).batch(1)
+# y = tf.data.Dataset.from_tensor_slices(y).batch(1)
+# train = val = tf.data.Dataset.zip((x, y))
 
 # --- model ---
 model = builder.get_model(
