@@ -8,12 +8,12 @@ from utils import preprocessing, text
 
 seed = datetime.now().microsecond
 
-path_texts = '/textos_parrafos'
+PATH_TEXTS = '/textos_parrafos'
 
-path_temples = '/temples'
-path_temples_ruins = '/temples_ruins'
-path_temples_colors = '/colors_temples'
-path_temples_ruins_colors = '/colors_temples_ruins'
+PATH_TEMPLES = '/temples'
+PATH_TEMPLES_RUINS = '/temples_ruins'
+PATH_TEMPLES_COLORS = '/colors_temples'
+PATH_TEMPLES_RUINS_COLORS = '/colors_temples_ruins'
 
 repetitions = [1, 2]
 
@@ -28,47 +28,47 @@ def get_dataset(path, option, *args):
         path = os.path.abspath(path)
 
     if option == 'reconstruction':
-        x_path = path + path_temples_ruins
-        y_path = path + path_temples
+        x_path = path + PATH_TEMPLES_RUINS
+        y_path = path + PATH_TEMPLES
         return reconstruction(*args, x_path, y_path)
 
     elif option == 'color_reconstruction':
-        x_path = path + path_temples_ruins_colors
-        y_path = path + path_temples_colors
+        x_path = path + PATH_TEMPLES_RUINS_COLORS
+        y_path = path + PATH_TEMPLES_COLORS
         return reconstruction(*args, x_path, y_path)
 
     elif option == 'color_assisted':
-        x_path = path + path_temples_ruins
-        y_path = path + path_temples
-        z_path = path + path_temples_colors
+        x_path = path + PATH_TEMPLES_RUINS
+        y_path = path + PATH_TEMPLES
+        z_path = path + PATH_TEMPLES_COLORS
         return reconstruction(*args, x_path, y_path, z_path)
 
     elif option in ['masking', 'de-masking']:
         preprocessing.apply_mask = True
-        x_path = path + path_temples_ruins_colors
-        y_path = path + path_temples_colors
-        z_path = path + path_temples
+        x_path = path + PATH_TEMPLES_RUINS_COLORS
+        y_path = path + PATH_TEMPLES_COLORS
+        z_path = path + PATH_TEMPLES
         if option == 'de-masking':
             preprocessing.demasking = True
             return reconstruction(*args, x_path, y_path, z_path)
         if option == 'masking':
-            aux_path = path + path_temples_ruins
+            aux_path = path + PATH_TEMPLES_RUINS
             return reconstruction(*args, x_path, y_path, z_path, aux_path)
 
     elif option == 'segmentation':
-        x_path = path + path_temples
-        y_path = path + path_temples_colors
+        x_path = path + PATH_TEMPLES
+        y_path = path + PATH_TEMPLES_COLORS
         return reconstruction(*args, x_path, y_path)
 
     elif option == 'de-segmentation':
-        x_path = path + path_temples_colors
-        y_path = path + path_temples
+        x_path = path + PATH_TEMPLES_COLORS
+        y_path = path + PATH_TEMPLES
         return reconstruction(*args, x_path, y_path)
 
     elif option == 'text_assisted':
-        x_path = path + path_temples_ruins
-        y_path = path + path_temples
-        text_path = path + path_texts
+        x_path = path + PATH_TEMPLES_RUINS
+        y_path = path + PATH_TEMPLES
+        text_path = path + PATH_TEXTS
         return reconstruction(*args, x_path, y_path, descriptions=True, text_path=text_path)
 
     else:

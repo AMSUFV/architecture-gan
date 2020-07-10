@@ -1,41 +1,74 @@
+import os
+import settings
 import tensorflow as tf
+
+from datetime import datetime
 from tensorflow import keras
-
-from keras_models.pix2pix import Pix2Pix
+from keras_parts import builder
 from keras_parts.callbacks import ImageSampling
-from keras_parts.losses import Pix2PixLosses
-from keras_parts import pix2pix_generator, pix2pix_discriminator
 from utils import data
+from utils import preprocessing
+
+# --- setup ---
+preprocessing.height = settings.IMG_HEIGHT
+preprocessing.width = settings.IMG_WIDTH
+preprocessing.set_mask()
+
+if settings.TRAINING in ["color_assisted", "de-masking"]:
+    repetitions = [1, settings.REPEAT, settings.REPEAT]
+elif settings.TRAINING == "masking":
+    repetitions = [1, settings.REPEAT, settings.REPEAT, 1]
+else:
+    repetitions = [1, settings.REPEAT]
+
+if settings.TRAINING == "color_assisted":
+    assisted = True
+else:
+    assisted = False
+
+# --- logs ---
+time = datetime.now().strftime('%Y%m%d-%H%M%S')
+temples = [str(x) for x in settings.TEMPLES]
+temples = ''.join(temples)
+resolution = f'{settings.IMG_WIDTH}x{settings.IMG_HEIGHT}'
+log_name = f'\\{settings.MODEL}\\{settings.TRAINING}\\'
+log_name += f't{temples}-{resolution}-buffer{settings.BUFFER_SIZE}-batch{settings.BATCH_SIZE}-e{settings.EPOCHS}\\{time}'
+log_dir = os.path.abspath(settings.LOG_DIR) + log_name
 
 
-generator = pix2pix_generator(input_shape=(256, 256, 3))
-discriminator = pix2pix_discriminator(input_shape=(256, 256, 3))
+# --- dataset ---
+dataset_dir = os.path.abspath(settings.DATASET_DIR)
 
-g_optimizer = keras.optimizers.Adam(learning_rate=2e-4, beta_1=0.5)
-d_optimizer = keras.optimizers.Adam(learning_rate=2e-4, beta_1=0.5)
+# train, val = data.get_dataset(
+#     dataset_dir,
+#     settings.TRAINING,
+#     settings.TEMPLES,
+#     settings.SPLIT,
+#     settings.BATCH_SIZE,
+#     settings.BUFFER_SIZE,
+# )
 
-pix2pix = Pix2Pix(generator, discriminator)
-pix2pix.compile(
-    g_optimizer=g_optimizer,
-    d_optimizer=d_optimizer,
-    g_loss_fn=Pix2PixLosses.loss_g,
-    d_loss_fn=Pix2PixLosses.loss_d,
-)
-
-
-x = tf.random.normal((10, 256, 256, 3))
-y = tf.ones_like(x, dtype=tf.float32)
+# for  testing purposes
+x = y = tf.random.normal((5, settings.IMG_HEIGHT, settings.IMG_WIDTH, 3))
 x = tf.data.Dataset.from_tensor_slices(x).batch(1)
 y = tf.data.Dataset.from_tensor_slices(y).batch(1)
-dataset = tf.data.Dataset.zip((x, y))
+train = val = tf.data.Dataset.zip((x, y))
+
+# --- model ---
+model = builder.get_model(
+    settings.MODEL, settings.TRAINING, (settings.IMG_HEIGHT, settings.IMG_WIDTH, 3)
+)
+
+# --- training ---
 
 # callbacks
-# tensorboard = keras.callbacks.TensorBoard()
-# image_sampling = ImageSampling(images=dataset.take(5), log_dir='logs')
-
-pix2pix.fit(
-    dataset,
-    epochs=1,
-    validation_data=dataset,
+tensorboard = keras.callbacks.TensorBoard(log_dir=log_dir)
+image_sampling = ImageSampling(
+    train.take(5), val.take(5), settings.FREQUENCY, log_dir=log_dir,
 )
-# pix2pix.evaluate(dataset)
+
+model.fit(
+    train, epochs=settings.EPOCHS, callbacks=[tensorboard, image_sampling], validation_data=val,
+)
+
+# model.generator.save('generator.h5')

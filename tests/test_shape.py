@@ -3,6 +3,7 @@ from tensorflow import random
 from parts import discriminators, generators
 
 
+@unittest.skip('Test not useful anymore')
 class TestShape(unittest.TestCase):
     def setUp(self) -> None:
         self.batch_size = 1
