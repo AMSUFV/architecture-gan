@@ -92,7 +92,7 @@ def reconstruction(temples, split=0.25, batch_size=1, buffer_size=400, *paths, *
         .batch(batch_size)
 
     # embeddings
-    if kwargs['descriptions']:
+    if kwargs.get('descriptions'):
         embeddings = get_embeddings(temples, kwargs['text_path'], repeat=size//len(temples))
         train_emb, val_emb = train_val_split(embeddings, split, size, buffer_size)
         train_emb = train_emb.batch(batch_size)

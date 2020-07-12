@@ -82,3 +82,34 @@ class Upscale(layers.Layer):
             }
         )
         return config
+
+
+def downscale(x, filters, size, apply_norm=True, slope=0.2):
+    initializer = tf.random_normal_initializer(0., 0.02)
+    x = layers.Conv2D(
+        filters=filters,
+        kernel_size=size,
+        strides=2,
+        padding='same',
+        kernel_initializer=initializer,
+        use_bias=False
+    )(x)
+    if apply_norm:
+        x = layers.BatchNormalization()(x)
+    return tf.nn.leaky_relu(x, alpha=slope)
+
+
+def upscale(x, filters, size, apply_dropout=False, rate=0.5):
+    initializer = tf.random_normal_initializer(0., 0.02)
+    x = layers.Conv2DTranspose(
+        filters=filters,
+        kernel_size=size,
+        strides=2,
+        padding='same',
+        kernel_initializer=initializer,
+        use_bias=False,
+    )(x)
+    x = layers.BatchNormalization()(x)
+    if apply_dropout:
+        x = layers.Dropout(rate)(x)
+    return tf.nn.relu(x)

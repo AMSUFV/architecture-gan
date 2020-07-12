@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-from .blocks import Downscale, Upscale
+from .blocks import downscale, upscale
 
 
 def pix2pix_generator(input_shape=(None, None, 3), assisted=False):
@@ -14,33 +14,60 @@ def pix2pix_generator(input_shape=(None, None, 3), assisted=False):
         input_layer = x = layers.Input(shape=input_shape)
 
     down_stack = [
-        Downscale(64, 4, apply_norm=False),
-        Downscale(128, 4),
-        Downscale(256, 4),
-        Downscale(512, 4),
-        Downscale(512, 4),
-        Downscale(512, 4),
-        Downscale(512, 4),
-        Downscale(512, 4),
+        # downscale(64, 4, apply_norm=False),
+        # downscale(128, 4),
+        # downscale(256, 4),
+        # downscale(512, 4),
+        # downscale(512, 4),
+        # downscale(512, 4),
+        # downscale(512, 4),
+        # downscale(512, 4),
+        dict(filters=64, kernel_size=4, apply_norm=False),
+        dict(filters=128, kernel_size=4),
+        dict(filters=256, kernel_size=4),
+        dict(filters=512, kernel_size=4),
+        dict(filters=512, kernel_size=4),
+        dict(filters=512, kernel_size=4),
+        dict(filters=512, kernel_size=4),
+        dict(filters=512, kernel_size=4),
     ]
     up_stack = [
-        Upscale(512, 4, apply_dropout=True),
-        Upscale(512, 4, apply_dropout=True),
-        Upscale(512, 4, apply_dropout=True),
-        Upscale(512, 4),
-        Upscale(256, 4),
-        Upscale(128, 4),
-        Upscale(64, 4),
+        # upscale(512, 4, apply_dropout=True),
+        # upscale(512, 4, apply_dropout=True),
+        # upscale(512, 4, apply_dropout=True),
+        # upscale(512, 4),
+        # upscale(256, 4),
+        # upscale(128, 4),
+        # upscale(64, 4),
+        dict(filters=512, kernel_size=4, apply_dropout=True),
+        dict(filters=512, kernel_size=4, apply_dropout=True),
+        dict(filters=512, kernel_size=4, apply_dropout=True),
+        dict(filters=512, kernel_size=4),
+        dict(filters=256, kernel_size=4),
+        dict(filters=128, kernel_size=4),
+        dict(filters=64, kernel_size=4),
     ]
 
     skips = []
     for block in down_stack:
-        x = block(x)
+        # x = block(x)
+        x = downscale(
+            x,
+            block.get('filters'),
+            block.get('kernel_size'),
+            block.get('apply_norm'),
+        )
         skips.append(x)
 
     skips = reversed(skips[:-1])
-    for up, skip in zip(up_stack, skips):
-        x = up(x)
+    for block, skip in zip(up_stack, skips):
+        # x = up(x)
+        x = upscale(
+            x,
+            block.get('filters'),
+            block.get('kernel_size'),
+            block.get('apply_dropout'),
+        )
         x = layers.concatenate([x, skip])
 
     output_image = layers.Conv2DTranspose(

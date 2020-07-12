@@ -62,9 +62,9 @@ model = builder.get_model(
 # --- training ---
 
 # callbacks
-tensorboard = keras.callbacks.TensorBoard(log_dir=log_dir)
+tensorboard = keras.callbacks.TensorBoard(log_dir=log_dir, write_graph=False)
 image_sampling = ImageSampling(
-    train.take(5), val.take(5), settings.FREQUENCY, log_dir=log_dir,
+    train.take(settings.N_SAMPLES), val.take(settings.N_SAMPLES), settings.FREQUENCY, log_dir=log_dir,
 )
 
 model.fit(
