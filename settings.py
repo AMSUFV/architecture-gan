@@ -45,6 +45,7 @@ LOG_DIR = 'logs/'
 LOG_IMAGES = True
 N_SAMPLES = 4
 FREQUENCY = 1
+SAVE = False
 
 # dataset params
 DATASET_DIR = 'dataset/'

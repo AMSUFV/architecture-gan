@@ -20,14 +20,14 @@ class ImageSampling(callbacks.Callback):
 
             for images, scope in data:
                 predictions = []
-                for image in images:
+                for i, image in enumerate(images):
                     predictions.append(self.model.generator(image) * 0.5 + 0.5)
                 predictions = tf.squeeze(predictions)
 
                 with tf.name_scope(scope):
                     with self.writer.as_default():
                         tf.summary.image(
-                            name="images",
+                            name=f"image_{i}",
                             data=predictions,
                             step=epoch,
                             max_outputs=predictions.shape[0],

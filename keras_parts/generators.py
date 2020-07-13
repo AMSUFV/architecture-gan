@@ -14,14 +14,6 @@ def pix2pix_generator(input_shape=(None, None, 3), assisted=False):
         input_layer = x = layers.Input(shape=input_shape)
 
     down_stack = [
-        # downscale(64, 4, apply_norm=False),
-        # downscale(128, 4),
-        # downscale(256, 4),
-        # downscale(512, 4),
-        # downscale(512, 4),
-        # downscale(512, 4),
-        # downscale(512, 4),
-        # downscale(512, 4),
         dict(filters=64, kernel_size=4, apply_norm=False),
         dict(filters=128, kernel_size=4),
         dict(filters=256, kernel_size=4),
@@ -32,13 +24,6 @@ def pix2pix_generator(input_shape=(None, None, 3), assisted=False):
         dict(filters=512, kernel_size=4),
     ]
     up_stack = [
-        # upscale(512, 4, apply_dropout=True),
-        # upscale(512, 4, apply_dropout=True),
-        # upscale(512, 4, apply_dropout=True),
-        # upscale(512, 4),
-        # upscale(256, 4),
-        # upscale(128, 4),
-        # upscale(64, 4),
         dict(filters=512, kernel_size=4, apply_dropout=True),
         dict(filters=512, kernel_size=4, apply_dropout=True),
         dict(filters=512, kernel_size=4, apply_dropout=True),
@@ -50,7 +35,6 @@ def pix2pix_generator(input_shape=(None, None, 3), assisted=False):
 
     skips = []
     for block in down_stack:
-        # x = block(x)
         x = downscale(
             x,
             block.get('filters'),
@@ -61,7 +45,6 @@ def pix2pix_generator(input_shape=(None, None, 3), assisted=False):
 
     skips = reversed(skips[:-1])
     for block, skip in zip(up_stack, skips):
-        # x = up(x)
         x = upscale(
             x,
             block.get('filters'),

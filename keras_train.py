@@ -71,4 +71,7 @@ model.fit(
     train, epochs=settings.EPOCHS, callbacks=[tensorboard, image_sampling], validation_data=val,
 )
 
-# model.generator.save('generator.h5')
+if settings.SAVE:
+    model_name = '-'.join([resolution, settings.MODEL, settings.TRAINING, temples])
+    model.generator.save(f'saved_models/{model_name}')
+
