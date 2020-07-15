@@ -4,14 +4,20 @@ from tensorflow.keras import optimizers
 from keras_parts import generators, discriminators, losses
 
 
-def get_model(name, training, input_shape):
+def get_model(name, training, input_shape, norm_type="batch"):
     if name == "pix2pix":
-        discriminator = discriminators.pix2pix_discriminator(input_shape)
+        discriminator = discriminators.pix2pix_discriminator(
+            input_shape, norm_type=norm_type
+        )
         if training == "color_assisted":
-            generator = generators.pix2pix_generator(input_shape, assisted=True)
+            generator = generators.pix2pix_generator(
+                input_shape, assisted=True, norm_type=norm_type
+            )
             model = keras_models.Assisted
         else:
-            generator = generators.pix2pix_generator(input_shape, assisted=False)
+            generator = generators.pix2pix_generator(
+                input_shape, assisted=False, norm_type=norm_type
+            )
             model = keras_models.Pix2Pix
         model = model(generator, discriminator)
 

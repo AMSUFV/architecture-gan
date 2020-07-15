@@ -1,5 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras import layers
+import tensorflow_addons as tfa
 
 
 class Downscale(layers.Layer):
@@ -84,32 +85,42 @@ class Upscale(layers.Layer):
         return config
 
 
-def downscale(x, filters, size, apply_norm=True, slope=0.2):
-    initializer = tf.random_normal_initializer(0., 0.02)
+def downscale(x, filters, size, slope=0.2, apply_norm=True, norm_type="batch"):
+    initializer = tf.random_normal_initializer(0.0, 0.02)
     x = layers.Conv2D(
         filters=filters,
         kernel_size=size,
         strides=2,
-        padding='same',
+        padding="same",
         kernel_initializer=initializer,
-        use_bias=False
+        use_bias=False,
     )(x)
     if apply_norm:
-        x = layers.BatchNormalization()(x)
+        if norm_type == "batch":
+            x = layers.BatchNormalization()(x)
+        elif norm_type == "instance":
+            x = tfa.layers.InstanceNormalization()(x)
+        else:
+            raise Exception(f"Norm type not recognized: {norm_type}")
     return tf.nn.leaky_relu(x, alpha=slope)
 
 
-def upscale(x, filters, size, apply_dropout=False, rate=0.5):
-    initializer = tf.random_normal_initializer(0., 0.02)
+def upscale(x, filters, size, apply_dropout=False, rate=0.5, norm_type="batch"):
+    initializer = tf.random_normal_initializer(0.0, 0.02)
     x = layers.Conv2DTranspose(
         filters=filters,
         kernel_size=size,
         strides=2,
-        padding='same',
+        padding="same",
         kernel_initializer=initializer,
         use_bias=False,
     )(x)
-    x = layers.BatchNormalization()(x)
+    if norm_type == "batch":
+        x = layers.BatchNormalization()(x)
+    elif norm_type == "instance":
+        x = tfa.layers.InstanceNormalization()(x)
+    else:
+        raise Exception(f"Norm type not recognized: {norm_type}")
     if apply_dropout:
         x = layers.Dropout(rate)(x)
     return tf.nn.relu(x)

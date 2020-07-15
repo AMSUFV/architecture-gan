@@ -56,7 +56,7 @@ train, val = data.get_dataset(
 
 # --- model ---
 model = builder.get_model(
-    settings.MODEL, settings.TRAINING, (settings.IMG_HEIGHT, settings.IMG_WIDTH, 3)
+    settings.MODEL, settings.TRAINING, (settings.IMG_HEIGHT, settings.IMG_WIDTH, 3), settings.NORM_TYPE,
 )
 
 # --- training ---
@@ -66,12 +66,20 @@ tensorboard = keras.callbacks.TensorBoard(log_dir=log_dir, write_graph=False)
 image_sampling = ImageSampling(
     train.take(settings.N_SAMPLES), val.take(settings.N_SAMPLES), settings.FREQUENCY, log_dir=log_dir,
 )
+checkpoint_dir = 'tmp/checkpoints'
+checkpoints = keras.callbacks.ModelCheckpoint(
+    filepath=checkpoint_dir,
+    save_weights_only=True,
+    monitor='val_g_loss',
+    mode='min',
+    save_best_only=True,
+)
 
 model.fit(
-    train, epochs=settings.EPOCHS, callbacks=[tensorboard, image_sampling], validation_data=val,
+    train, epochs=settings.EPOCHS, callbacks=[tensorboard, image_sampling, checkpoints], validation_data=val,
 )
 
 if settings.SAVE:
-    model_name = '-'.join([resolution, settings.MODEL, settings.TRAINING, temples])
+    model_name = '_'.join([resolution, settings.MODEL, settings.TRAINING, temples])
     model.generator.save(f'saved_models/{model_name}')
 

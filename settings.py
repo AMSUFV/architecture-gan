@@ -38,21 +38,21 @@ IMG_WIDTH: Image width
 
 # training params
 MODEL = 'pix2pix'
-NORM_TYPE = 'batch'
+NORM_TYPE = 'instance'
 TRAINING = 'reconstruction'
-EPOCHS = 5
+EPOCHS = 50
 LOG_DIR = 'logs/'
 LOG_IMAGES = True
 N_SAMPLES = 4
-FREQUENCY = 1
-SAVE = False
+FREQUENCY = 5
+SAVE = True
 
 # dataset params
 DATASET_DIR = 'dataset/'
-TEMPLES = [0]
+TEMPLES = [1, 2, 3, 4, 5, 6, 7, 8]
 SPLIT = 0.2
 BATCH_SIZE = 1
-BUFFER_SIZE = 400
+BUFFER_SIZE = 500
 REPEAT = 1
 IMG_HEIGHT = 256
 IMG_WIDTH = 512

@@ -4,7 +4,7 @@ from tensorflow.keras import layers
 from .blocks import downscale, upscale
 
 
-def pix2pix_generator(input_shape=(None, None, 3), assisted=False):
+def pix2pix_generator(input_shape=(None, None, 3), assisted=False, norm_type="batch"):
     initializer = tf.random_normal_initializer(0.0, 0.02)
 
     if assisted:
@@ -37,9 +37,10 @@ def pix2pix_generator(input_shape=(None, None, 3), assisted=False):
     for block in down_stack:
         x = downscale(
             x,
-            block.get('filters'),
-            block.get('kernel_size'),
-            block.get('apply_norm'),
+            block.get("filters"),
+            block.get("kernel_size"),
+            block.get("apply_norm"),
+            norm_type=norm_type,
         )
         skips.append(x)
 
@@ -47,9 +48,10 @@ def pix2pix_generator(input_shape=(None, None, 3), assisted=False):
     for block, skip in zip(up_stack, skips):
         x = upscale(
             x,
-            block.get('filters'),
-            block.get('kernel_size'),
-            block.get('apply_dropout'),
+            block.get("filters"),
+            block.get("kernel_size"),
+            block.get("apply_dropout"),
+            norm_type=norm_type,
         )
         x = layers.concatenate([x, skip])
 
