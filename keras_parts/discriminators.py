@@ -2,7 +2,7 @@ import tensorflow as tf
 import tensorflow_addons as tfa
 from tensorflow import keras
 from tensorflow.keras import layers
-from .blocks import Downscale
+from .blocks import downscale
 
 
 def pix2pix_discriminator(input_shape=(None, None, 3), norm_type="batch"):
