@@ -57,3 +57,5 @@ REPEAT = 1
 IMG_HEIGHT = 256
 IMG_WIDTH = 512
 
+# GPU limits
+GPU_LIMIT = None

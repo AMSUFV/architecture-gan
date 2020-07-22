@@ -9,6 +9,18 @@ from keras_parts.callbacks import ImageSampling
 from utils import data
 from utils import preprocessing
 
+# -- gpu memory limit --
+if settings.GPU_LIMIT:
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    try:
+        tf.config.experimental.set_virtual_device_configuration(
+            gpus[0],
+            [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=settings.GPU_LIMIT)]
+        )
+    except RuntimeError as e:
+        print(e)
+
+
 # --- setup ---
 preprocessing.height = settings.IMG_HEIGHT
 preprocessing.width = settings.IMG_WIDTH
