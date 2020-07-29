@@ -6,19 +6,18 @@ from datetime import datetime
 from functools import reduce
 from utils import preprocessing, text
 
-seed = datetime.now().microsecond
+SEED = datetime.now().microsecond
 
-PATH_TEXTS = '/textos_parrafos'
+PATH_TEXTS = '\\textos_parrafos'
 
-PATH_TEMPLES = '/temples'
-PATH_TEMPLES_RUINS = '/temples_ruins'
-PATH_TEMPLES_COLORS = '/colors_temples'
-PATH_TEMPLES_RUINS_COLORS = '/colors_temples_ruins'
+PATH_TEMPLES = '\\temples'
+PATH_TEMPLES_RUINS = '\\temples_ruins'
+PATH_TEMPLES_COLORS = '\\colors_temples'
+PATH_TEMPLES_RUINS_COLORS = '\\colors_temples_ruins'
 
-repetitions = [1, 2]
+REPETITIONS = [1, 2]
 
-mapping_func = preprocessing.load_images
-glob_pattern = '/*temple_{}*/*'
+GLOB_PATTERN = '\\*temple_{}*\\*'
 
 
 def get_dataset(path, option, *args):
@@ -41,15 +40,15 @@ def get_dataset(path, option, *args):
         x_path = path + PATH_TEMPLES_RUINS
         y_path = path + PATH_TEMPLES
         z_path = path + PATH_TEMPLES_COLORS
-        return reconstruction(*args, x_path, y_path, z_path)
+        return reconstruction(*args, x_path, z_path, y_path)
 
     elif option in ['masking', 'de-masking']:
-        preprocessing.apply_mask = True
+        preprocessing.APPLY_MASK = True
         x_path = path + PATH_TEMPLES_RUINS_COLORS
         y_path = path + PATH_TEMPLES_COLORS
         z_path = path + PATH_TEMPLES
         if option == 'de-masking':
-            preprocessing.demasking = True
+            preprocessing.DEMASKING = True
             return reconstruction(*args, x_path, y_path, z_path)
         if option == 'masking':
             aux_path = path + PATH_TEMPLES_RUINS
@@ -76,16 +75,15 @@ def get_dataset(path, option, *args):
 
 
 def reconstruction(temples, split=0.25, batch_size=1, buffer_size=400, *paths, **kwargs):
-
     # dataset size
-    size = list(map(lambda x: len(glob.glob(paths[0] + glob_pattern.format(x))), temples))
-    size = reduce((lambda x, y: max(x, y)), size)
+    size = list(map(lambda x: len(glob.glob(paths[0] + GLOB_PATTERN.format(x))), temples))
+    # size = reduce((lambda x, y: max(x, y)), size)
+    size = sum(size)
 
     files = list(map(lambda x: get_unique(x, paths), temples))
     files = reduce(concat, files)
 
     train_files, val_files = train_val_split(files, split, size, buffer_size)
-
     train = train_files.map(preprocessing.load_images, num_parallel_calls=tf.data.experimental.AUTOTUNE)\
         .batch(batch_size)
     val = val_files.map(preprocessing.load_images, num_parallel_calls=tf.data.experimental.AUTOTUNE)\
@@ -104,13 +102,13 @@ def reconstruction(temples, split=0.25, batch_size=1, buffer_size=400, *paths, *
 
 
 def get_unique(number, paths):
-    pattern = glob_pattern.format(number)
+    pattern = GLOB_PATTERN.format(number)
     if type(paths[0]) == list:  # in case several glob patterns are needed
         paths = [[path + pattern for path in path_list] for path_list in paths]
     else:
         paths = [path + pattern for path in paths]
     file_datasets = [tf.data.Dataset.list_files(path, shuffle=False).repeat(rep)
-                     for path, rep in zip(paths, repetitions)]
+                     for path, rep in zip(paths, REPETITIONS)]
     return tf.data.Dataset.zip(tuple(file_datasets))
 
 
@@ -119,14 +117,13 @@ def concat(a, b):
 
 
 def train_val_split(dataset, split, size, buffer_size):
-    dataset = dataset.shuffle(buffer_size, seed=seed)
+    dataset = dataset.shuffle(buffer_size, seed=SEED)
     train = dataset.skip(round(size * split))
     val = dataset.take(round(size * split))
     return train, val
 
 
 def get_embeddings(temples, path, repeat):
-
     dataset = []
     for temple in temples:
         file_path = path + f'/caso{temple + 1}.sent.txt'
@@ -139,7 +136,6 @@ def get_embeddings(temples, path, repeat):
         embeddings = tf.reduce_mean(embeddings, axis=0)
         embeddings = tf.repeat(embeddings, repeat, axis=0)
         dataset.append(tf.data.Dataset.from_tensor_slices(embeddings))
-
     return reduce(concat, dataset)
 
 

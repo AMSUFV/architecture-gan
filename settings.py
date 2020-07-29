@@ -8,7 +8,14 @@ MODEL: Model to use. Available:
 NORM_TYPE: Type of normalization to apply in the building blocks. Avaliable:
     * batchnorm: Batch normalization
     * instancenorm: Instance normalization
-TRAINING: Type of training. Available:
+LOG_DIR: Base folder to keep the training logs at
+LOG_IMAGES: Whether or not to log images to tensorboard during training
+FREQUENCY: Frequency of image logging
+
+
+Dataset parameters:
+
+DATASET: Type of dataset. Available:
     * color_assisted:       ((temple ruins, segmented temple), temple)
     * color_reconstruction: (temple ruins segmented, temple segmented)
     * reconstruction:       (temple ruins, temple)
@@ -17,13 +24,6 @@ TRAINING: Type of training. Available:
     * masking:              (temple ruins, temple ruins masked); aimed at marking the missing areas
     * de-masking            (temple ruins masked, temple); aimed at reconstructing the marked areas
     * text_assisted         ((temple ruins, temple description), temple)
-LOG_DIR: Base folder to keep the training logs at
-LOG_IMAGES: Whether or not to log images to tensorboard during training
-FREQUENCY: Frequency of image logging
-
-
-Dataset parameters:
-
 DATASET_DIR: Base folder of the dataset
 TEMPLES: Temples to use during training, e.g. temple_0, temple_1, etc.
 SPLIT: Train/validation split
@@ -39,21 +39,22 @@ IMG_WIDTH: Image width
 # training params
 MODEL = 'pix2pix'
 NORM_TYPE = 'instance'
-TRAINING = 'reconstruction'
-EPOCHS = 50
+EPOCHS = 5
 LOG_DIR = 'logs/'
 LOG_IMAGES = True
 N_SAMPLES = 4
-FREQUENCY = 5
-SAVE = True
+FREQUENCY = 1
+SAVE = False
+RESTORE = False
 
 # dataset params
+DATASET = 'color_assisted'
 DATASET_DIR = 'dataset/'
-TEMPLES = [1, 2, 3, 4, 5, 6, 7, 8]
+TEMPLES = [0, 1]
 SPLIT = 0.2
 BATCH_SIZE = 1
-BUFFER_SIZE = 500
-REPEAT = 1
+BUFFER_SIZE = 1200
+REPEAT = 2
 IMG_HEIGHT = 256
 IMG_WIDTH = 512
 

@@ -1,58 +1,39 @@
 import tensorflow as tf
 
-width, height = 512, 512
-resize_factor = 1.3
+WIDTH, HEIGHT = 512, 512
+RESIZE_FACTOR = 1.3
+
 # Normalization boundaries
-a, b = -1, 1
+A, B = -1, 1
 
 # mask - pink color
-mask = None
-apply_mask = False
-demasking = False
-
-# image decoding function
-img_decoding = tf.io.decode_png
+MASK = None
+APPLY_MASK = False
+DEMASKING = False
 
 
-def setup(img_format):
-    global img_decoding, mask
-    if img_format == 'png':
-        img_decoding = tf.io.decode_png
-    elif img_format == 'jpeg':
-        img_decoding = tf.io.decode_jpeg
-    red = blue = tf.fill((height, width), 255)
-    green = tf.fill((height, width), 0)
+def get_mask():
+    red = blue = tf.fill((HEIGHT, WIDTH), 255)
+    green = tf.fill((HEIGHT, WIDTH), 0)
     mask = tf.stack((red, green, blue), axis=2)
-    mask = tf.cast(mask, dtype='float32')
-
-
-def set_mask():
-    global mask
-    red = blue = tf.fill((height, width), 255)
-    green = tf.fill((height, width), 0)
-    mask = tf.stack((red, green, blue), axis=2)
-    mask = tf.cast(mask, dtype='float32')
+    return tf.cast(mask, dtype='float32')
 
 
 def load_images(*paths):
     images = list(map(load, paths))
     images = tf.stack(images)
     images = jitter(images)
-    if apply_mask:
-        images = get_mask(images)
+    if APPLY_MASK:
+        images = mask_image(images)
     # feature scaling assuming max will always be 255 and min will always be 0 for all images
-    images = a + (images * (b - a)) / 255
+    images = A + (images * (B - A)) / 255
     return tf.unstack(images, num=images.shape[0])
 
 
 def load_test_images(*paths):
     images = list(map(load, paths))
-    images = resize(tf.stack(images), height, width)
+    images = resize(tf.stack(images), HEIGHT, WIDTH)
     return tf.unstack(images, num=images.shape[0])
-
-
-def load_images_and_text(embedding, *paths):
-    pass
 
 
 def load(path):
@@ -62,11 +43,20 @@ def load(path):
 
 
 def jitter(images):
-    # resized = resize(images, int(height * resize_factor), int(width * resize_factor))
+    # Resizes the images to the closes size to the target size without losing aspect ratio
+    # resized = resize_nearest_size(images)
+    # Prepares the images for the random crop
+    # resized = resize(resized, int(images[0].shape[0] * RESIZE_FACTOR), int(images[0].shape[1] * RESIZE_FACTOR))
     cropped = random_crop(images)
     if tf.random.uniform(()) > 0.5:
         return tf.image.flip_left_right(cropped)
     return cropped
+
+
+def resize_nearest_size(images):
+    img_height, img_width = images[0].shape[0], images[0].shape[1]
+    ratio = img_width / WIDTH
+    return resize(images, int(img_height / ratio), int(img_width / ratio))
 
 
 def resize(image, h, w):
@@ -74,11 +64,11 @@ def resize(image, h, w):
 
 
 def random_crop(images):
-    return tf.image.random_crop(images, size=[images.shape[0], height, width, 3])
+    return tf.image.random_crop(images, size=[images.shape[0], HEIGHT, WIDTH, 3])
 
 
-def get_mask(images):
-    if demasking:
+def mask_image(images):
+    if DEMASKING:
         seg_ruin, seg_temple, temple = tf.unstack(images, num=images.shape[0])
         ruins = None
     else:
@@ -90,8 +80,8 @@ def get_mask(images):
     diff = tf.reduce_sum(diff, axis=2)
     diff = tf.expand_dims(diff, axis=2)
     # we keep the real image where they are the same, and put the mask where they differ
-    masked_temple = tf.where(diff == 0, temple, mask)
-    if demasking:
+    masked_temple = tf.where(diff == 0, temple, MASK)
+    if DEMASKING:
         return tf.stack([masked_temple, temple])
     else:
         return tf.stack([ruins, masked_temple])

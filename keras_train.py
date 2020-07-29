@@ -22,18 +22,18 @@ if settings.GPU_LIMIT:
 
 
 # --- setup ---
-preprocessing.height = settings.IMG_HEIGHT
-preprocessing.width = settings.IMG_WIDTH
-preprocessing.set_mask()
+preprocessing.HEIGHT = settings.IMG_HEIGHT
+preprocessing.WIDTH = settings.IMG_WIDTH
+preprocessing.MASK = preprocessing.get_mask()
 
-if settings.TRAINING in ["color_assisted", "de-masking"]:
-    repetitions = [1, settings.REPEAT, settings.REPEAT]
-elif settings.TRAINING == "masking":
-    repetitions = [1, settings.REPEAT, settings.REPEAT, 1]
+if settings.DATASET in ["color_assisted", "de-masking"]:
+    data.REPETITIONS = [1, settings.REPEAT, settings.REPEAT]
+elif settings.DATASET == "masking":
+    data.REPETITIONS = [1, settings.REPEAT, settings.REPEAT, 1]
 else:
-    repetitions = [1, settings.REPEAT]
+    data.REPETITIONS = [1, settings.REPEAT]
 
-if settings.TRAINING == "color_assisted":
+if settings.DATASET == "color_assisted":
     assisted = True
 else:
     assisted = False
@@ -43,8 +43,9 @@ time = datetime.now().strftime('%Y%m%d-%H%M%S')
 temples = [str(x) for x in settings.TEMPLES]
 temples = ''.join(temples)
 resolution = f'{settings.IMG_WIDTH}x{settings.IMG_HEIGHT}'
-log_name = f'\\{settings.MODEL}\\{settings.TRAINING}\\'
-log_name += f't{temples}-{resolution}-buffer{settings.BUFFER_SIZE}-batch{settings.BATCH_SIZE}-e{settings.EPOCHS}\\{time}'
+log_name = f'\\{settings.MODEL}\\{settings.DATASET}\\'
+log_name += f'{settings.NORM_TYPE}_norm\\t{temples}-{resolution}-buffer{settings.BUFFER_SIZE}-' +\
+            f'batch{settings.BATCH_SIZE}-e{settings.EPOCHS}\\{time}'
 log_dir = os.path.abspath(settings.LOG_DIR) + log_name
 
 
@@ -53,7 +54,7 @@ dataset_dir = os.path.abspath(settings.DATASET_DIR)
 
 train, val = data.get_dataset(
     dataset_dir,
-    settings.TRAINING,
+    settings.DATASET,
     settings.TEMPLES,
     settings.SPLIT,
     settings.BATCH_SIZE,
@@ -68,7 +69,7 @@ train, val = data.get_dataset(
 
 # --- model ---
 model = builder.get_model(
-    settings.MODEL, settings.TRAINING, (settings.IMG_HEIGHT, settings.IMG_WIDTH, 3), settings.NORM_TYPE,
+    settings.MODEL, settings.DATASET, (settings.IMG_HEIGHT, settings.IMG_WIDTH, 3), settings.NORM_TYPE,
 )
 
 # --- training ---
@@ -76,7 +77,11 @@ model = builder.get_model(
 # callbacks
 tensorboard = keras.callbacks.TensorBoard(log_dir=log_dir, write_graph=False)
 image_sampling = ImageSampling(
-    train.take(settings.N_SAMPLES), val.take(settings.N_SAMPLES), settings.FREQUENCY, log_dir=log_dir,
+    train.take(settings.N_SAMPLES),
+    val.take(settings.N_SAMPLES),
+    settings.FREQUENCY,
+    log_dir=log_dir + '\\images',
+    assisted=assisted,
 )
 checkpoint_dir = 'tmp/checkpoints'
 checkpoints = keras.callbacks.ModelCheckpoint(
@@ -87,11 +92,14 @@ checkpoints = keras.callbacks.ModelCheckpoint(
     save_best_only=True,
 )
 
+if settings.RESTORE:
+    model.load_weights(checkpoint_dir)
+
 model.fit(
     train, epochs=settings.EPOCHS, callbacks=[tensorboard, image_sampling, checkpoints], validation_data=val,
 )
 
 if settings.SAVE:
-    model_name = '_'.join([resolution, settings.MODEL, settings.TRAINING, temples])
+    model_name = '_'.join([resolution, settings.MODEL, settings.NORM_TYPE, settings.DATASET, temples])
     model.generator.save(f'saved_models/{model_name}')
 

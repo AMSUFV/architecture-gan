@@ -45,12 +45,12 @@ class TestTrain(unittest.TestCase):
 
     @unittest.skip
     def test_reconstruction(self):
-        settings.TRAINING = 'reconstruction'
+        settings.DATASET = 'reconstruction'
         import keras_train
 
     @unittest.skip
     def test_color_assisted(self):
-        settings.TRAINING = 'color_assisted'
+        settings.DATASET = 'color_assisted'
         import keras_train
 
     # def tearDown(self):
