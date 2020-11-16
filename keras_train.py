@@ -101,5 +101,5 @@ model.fit(
 
 if settings.SAVE:
     model_name = '_'.join([resolution, settings.MODEL, settings.NORM_TYPE, settings.DATASET, temples])
-    model.generator.save(f'saved_models/{model_name}')
+    model.generator.save(f'{settings.SAVE_PATH}{model_name}')
 

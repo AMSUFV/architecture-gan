@@ -22,7 +22,7 @@ DATASET: Type of dataset. Available:
     * segmentation:         (temple segmented, temple)
     * de-segmentation:      (temple, temple segmented)
     * masking:              (temple ruins, temple ruins masked); aimed at marking the missing areas
-    * de-masking            (temple ruins masked, temple); aimed at reconstructing the marked areas
+    * de-masking:           (temple ruins masked, temple); aimed at reconstructing the marked areas
     * text_assisted         ((temple ruins, temple description), temple)
 DATASET_DIR: Base folder of the dataset
 TEMPLES: Temples to use during training, e.g. temple_0, temple_1, etc.
@@ -38,19 +38,20 @@ IMG_WIDTH: Image width
 
 # training params
 MODEL = 'pix2pix'
-NORM_TYPE = 'instance'
-EPOCHS = 5
+NORM_TYPE = 'batch'
+EPOCHS = 25
 LOG_DIR = 'logs/'
 LOG_IMAGES = True
 N_SAMPLES = 4
-FREQUENCY = 1
-SAVE = False
+FREQUENCY = 5
+SAVE = True
+SAVE_PATH = 'saved_models/'
 RESTORE = False
 
 # dataset params
 DATASET = 'color_assisted'
 DATASET_DIR = 'dataset/'
-TEMPLES = [0, 1]
+TEMPLES = [0, 9]
 SPLIT = 0.2
 BATCH_SIZE = 1
 BUFFER_SIZE = 1200
@@ -60,3 +61,9 @@ IMG_WIDTH = 512
 
 # GPU limits
 GPU_LIMIT = None
+
+# test params
+MODEL_PATH = 'saved_models/512x256_pix2pix_batch_color_assisted_12345678'
+TO_FILE = True
+TEST_SAVE_PATH = 'evaluation_results/reconstruction_error/'
+TEST_FILE_NAME = '512x256_pix2pix_batch_color_assisted_12345678.txt'

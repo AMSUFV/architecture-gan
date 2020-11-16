@@ -32,7 +32,10 @@ def load_images(*paths):
 
 def load_test_images(*paths):
     images = list(map(load, paths))
-    images = resize(tf.stack(images), HEIGHT, WIDTH)
+    images = resize_nearest_size(tf.stack(images))
+    images = random_crop(images)
+    # images = resize(tf.stack(images), HEIGHT, WIDTH)
+    images = A + (images * (B - A)) / 255
     return tf.unstack(images, num=images.shape[0])
 
 
@@ -54,9 +57,10 @@ def jitter(images):
 
 
 def resize_nearest_size(images):
-    img_height, img_width = images[0].shape[0], images[0].shape[1]
-    ratio = img_width / WIDTH
-    return resize(images, int(img_height / ratio), int(img_width / ratio))
+    # height = images.shape[1]
+    # width = images.shape[2]
+    # ratio = width.numpy() / WIDTH
+    return resize(images, 368, 512)
 
 
 def resize(image, h, w):

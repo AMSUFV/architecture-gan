@@ -6,18 +6,21 @@ from datetime import datetime
 from functools import reduce
 from utils import preprocessing, text
 
-SEED = datetime.now().microsecond
 
-PATH_TEXTS = '\\textos_parrafos'
+AUTOTUNE = tf.data.experimental.AUTOTUNE
+
+SEED = datetime.now().microsecond
 
 PATH_TEMPLES = '\\temples'
 PATH_TEMPLES_RUINS = '\\temples_ruins'
 PATH_TEMPLES_COLORS = '\\colors_temples'
 PATH_TEMPLES_RUINS_COLORS = '\\colors_temples_ruins'
+PATH_TEXTS = '\\textos_parrafos'
 
 REPETITIONS = [1, 2]
-
 GLOB_PATTERN = '\\*temple_{}*\\*'
+
+TEST_MODE = False
 
 
 def get_dataset(path, option, *args):
@@ -75,18 +78,20 @@ def get_dataset(path, option, *args):
 
 
 def reconstruction(temples, split=0.25, batch_size=1, buffer_size=400, *paths, **kwargs):
-    # dataset size
-    size = list(map(lambda x: len(glob.glob(paths[0] + GLOB_PATTERN.format(x))), temples))
-    # size = reduce((lambda x, y: max(x, y)), size)
-    size = sum(size)
 
     files = list(map(lambda x: get_unique(x, paths), temples))
     files = reduce(concat, files)
 
+    if TEST_MODE:
+        return files.map(preprocessing.load_test_images, num_parallel_calls=AUTOTUNE).batch(1)
+
+    size = list(map(lambda x: len(glob.glob(paths[0] + GLOB_PATTERN.format(x))), temples))
+    size = sum(size)
+
     train_files, val_files = train_val_split(files, split, size, buffer_size)
-    train = train_files.map(preprocessing.load_images, num_parallel_calls=tf.data.experimental.AUTOTUNE)\
+    train = train_files.map(preprocessing.load_images, num_parallel_calls=AUTOTUNE)\
         .batch(batch_size)
-    val = val_files.map(preprocessing.load_images, num_parallel_calls=tf.data.experimental.AUTOTUNE)\
+    val = val_files.map(preprocessing.load_images, num_parallel_calls=AUTOTUNE)\
         .batch(batch_size)
 
     # embeddings
@@ -117,9 +122,9 @@ def concat(a, b):
 
 
 def train_val_split(dataset, split, size, buffer_size):
-    dataset = dataset.shuffle(buffer_size, seed=SEED)
+    dataset = dataset.shuffle(size, seed=SEED)
     train = dataset.skip(round(size * split))
-    val = dataset.take(round(size * split))
+    val = dataset.take(round(size * split)).shuffle(buffer_size=round(size * split), reshuffle_each_iteration=False)
     return train, val
 
 
@@ -147,7 +152,7 @@ def get_simple_dataset(width, height, *paths):
                     for path in paths]
     file_dataset = tf.data.Dataset.zip(tuple(file_dataset))
 
-    return file_dataset.map(preprocessing.load_images, num_parallel_calls=tf.data.experimental.AUTOTUNE).batch(1)
+    return file_dataset.map(preprocessing.load_images, num_parallel_calls=AUTOTUNE).batch(1)
 
 
 def validate(model, width, height, down_blocks):
