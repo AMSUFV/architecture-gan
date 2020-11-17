@@ -39,19 +39,19 @@ IMG_WIDTH: Image width
 # training params
 MODEL = 'pix2pix'
 NORM_TYPE = 'batch'
-EPOCHS = 25
+EPOCHS = 1
 LOG_DIR = 'logs/'
 LOG_IMAGES = True
 N_SAMPLES = 4
 FREQUENCY = 5
-SAVE = True
+SAVE = False
 SAVE_PATH = 'saved_models/'
 RESTORE = False
 
 # dataset params
 DATASET = 'color_assisted'
 DATASET_DIR = 'dataset/'
-TEMPLES = [0, 9]
+TEMPLES = [0]
 SPLIT = 0.2
 BATCH_SIZE = 1
 BUFFER_SIZE = 1200

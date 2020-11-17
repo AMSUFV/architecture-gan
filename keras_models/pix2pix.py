@@ -4,6 +4,9 @@ from tensorflow import keras
 
 # noinspection PyAttributeOutsideInit,PyMethodOverriding
 class Pix2Pix(keras.Model):
+    def get_config(self):
+        pass
+
     def __init__(self, generator, discriminator):
         super(Pix2Pix, self).__init__()
         self.discriminator = discriminator
