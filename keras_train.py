@@ -9,6 +9,18 @@ from keras_parts.callbacks import ImageSampling
 from utils import data
 from utils import preprocessing
 
+
+def get_model_name() -> str:
+    resolution = f'{settings.IMG_WIDTH}x{settings.IMG_HEIGHT}'
+    return '_'.join([
+        resolution,
+        settings.MODEL,
+        settings.NORM_TYPE,
+        settings.DATASET,
+        ''.join(settings.TEMPLES)
+    ])
+
+
 # -- gpu memory limit --
 if settings.GPU_LIMIT:
     gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -19,7 +31,6 @@ if settings.GPU_LIMIT:
         )
     except RuntimeError as e:
         print(e)
-
 
 # --- setup ---
 preprocessing.HEIGHT = settings.IMG_HEIGHT
@@ -44,10 +55,9 @@ temples = [str(x) for x in settings.TEMPLES]
 temples = ''.join(temples)
 resolution = f'{settings.IMG_WIDTH}x{settings.IMG_HEIGHT}'
 log_name = f'\\{settings.MODEL}\\{settings.DATASET}\\'
-log_name += f'{settings.NORM_TYPE}_norm\\t{temples}-{resolution}-buffer{settings.BUFFER_SIZE}-' +\
+log_name += f'{settings.NORM_TYPE}_norm\\t{temples}-{resolution}-buffer{settings.BUFFER_SIZE}-' + \
             f'batch{settings.BATCH_SIZE}-e{settings.EPOCHS}\\{time}'
 log_dir = os.path.abspath(settings.LOG_DIR) + log_name
-
 
 # --- dataset ---
 dataset_dir = os.path.abspath(settings.DATASET_DIR)
@@ -69,7 +79,10 @@ train, val = data.get_dataset(
 
 # --- model ---
 model = builder.get_model(
-    settings.MODEL, settings.DATASET, (settings.IMG_HEIGHT, settings.IMG_WIDTH, 3), settings.NORM_TYPE,
+    settings.MODEL,
+    settings.DATASET,
+    (settings.IMG_HEIGHT, settings.IMG_WIDTH, 3),
+    settings.NORM_TYPE,
 )
 
 # --- training ---
@@ -96,10 +109,18 @@ if settings.RESTORE:
     model.load_weights(checkpoint_dir)
 
 model.fit(
-    train, epochs=settings.EPOCHS, callbacks=[tensorboard, image_sampling, checkpoints], validation_data=val,
+    train,
+    epochs=settings.EPOCHS,
+    callbacks=[tensorboard, image_sampling, checkpoints],
+    validation_data=val,
 )
 
 if settings.SAVE:
-    model_name = '_'.join([resolution, settings.MODEL, settings.NORM_TYPE, settings.DATASET, temples])
+    model_name = '_'.join([
+        resolution,
+        settings.MODEL,
+        settings.NORM_TYPE,
+        settings.DATASET,
+        temples
+    ])
     model.generator.save(f'{settings.SAVE_PATH}{model_name}')
-

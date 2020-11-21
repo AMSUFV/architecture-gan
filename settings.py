@@ -2,20 +2,20 @@
 
 Training parameters:
 
-MODEL: Model to use. Available:
+- MODEL: Model to use. Available:
     * pix2pix
     * resnet
-NORM_TYPE: Type of normalization to apply in the building blocks. Avaliable:
+- NORM_TYPE: Type of normalization to apply in the building blocks. Avaliable:
     * batchnorm: Batch normalization
     * instancenorm: Instance normalization
-LOG_DIR: Base folder to keep the training logs at
-LOG_IMAGES: Whether or not to log images to tensorboard during training
-FREQUENCY: Frequency of image logging
+- LOG_DIR: Base folder to keep the training logs at
+- LOG_IMAGES: Whether or not to log images to tensorboard during training
+- FREQUENCY: Frequency of image logging
 
 
 Dataset parameters:
 
-DATASET: Type of dataset. Available:
+- DATASET: Type of dataset. Available:
     * color_assisted:       ((temple ruins, segmented temple), temple)
     * color_reconstruction: (temple ruins segmented, temple segmented)
     * reconstruction:       (temple ruins, temple)
@@ -24,37 +24,38 @@ DATASET: Type of dataset. Available:
     * masking:              (temple ruins, temple ruins masked); aimed at marking the missing areas
     * de-masking:           (temple ruins masked, temple); aimed at reconstructing the marked areas
     * text_assisted         ((temple ruins, temple description), temple)
-DATASET_DIR: Base folder of the dataset
-TEMPLES: Temples to use during training, e.g. temple_0, temple_1, etc.
-SPLIT: Train/validation split
-BATCH_SIZE: Batch size
-BUFFER_SIZE: Size of the shuffling buffer. This should be set higher than the images per temple. Ideally, it should
-be set to the size of the dataset
-REPEAT: Number of ruins models per temple model used during training
-IMG_HEIGHT: Image height
-IMG_WIDTH: Image width
+- DATASET_DIR: Base folder of the dataset
+- TEMPLES: Temples to use during training, e.g. temple_0, temple_1, etc.
+- SPLIT: Train/validation split
+- BATCH_SIZE: Batch size
+- BUFFER_SIZE: Size of the shuffling buffer. This should be set higher than the images per temple. Ideally, it should
+  be set to the size of the dataset
+- REPEAT: Number of ruins models per temple model used during training
+- IMG_HEIGHT: Image height
+- IMG_WIDTH: Image width
 
 """
+from utils import metrics
 
 # training params
 MODEL = 'pix2pix'
 NORM_TYPE = 'batch'
-EPOCHS = 1
+EPOCHS = 25
 LOG_DIR = 'logs/'
 LOG_IMAGES = True
 N_SAMPLES = 4
 FREQUENCY = 5
-SAVE = False
+SAVE = True
 SAVE_PATH = 'saved_models/'
 RESTORE = False
 
 # dataset params
-DATASET = 'color_assisted'
+DATASET = 'reconstruction'
 DATASET_DIR = 'dataset/'
-TEMPLES = [0]
+TEMPLES: list = [9]
 SPLIT = 0.2
 BATCH_SIZE = 1
-BUFFER_SIZE = 1200
+BUFFER_SIZE = 900
 REPEAT = 2
 IMG_HEIGHT = 256
 IMG_WIDTH = 512
@@ -63,7 +64,13 @@ IMG_WIDTH = 512
 GPU_LIMIT = None
 
 # test params
-MODEL_PATH = 'saved_models/512x256_pix2pix_batch_color_assisted_12345678'
+# MODEL_PATH = 'saved_models/512x256_pix2pix_batch_color_assisted_12345678'
+MODEL_PATH = dict(
+    segmenter='saved_models/512x256_pix2pix_batch_segmentation_025',
+    color_reconstructor='saved_models/512x256_pix2pix_batch_color_reconstruction_025',
+    reconstructor='saved_models/512x256_pix2pix_batch_color_assisted_12345678'
+)
 TO_FILE = True
-TEST_SAVE_PATH = 'evaluation_results/reconstruction_error/'
-TEST_FILE_NAME = '512x256_pix2pix_batch_color_assisted_12345678.txt'
+TEST_SAVE_PATH = 'evaluation_results/'
+TEST_FILE_NAME = 'step_model/'
+METRIC = metrics.SSIM

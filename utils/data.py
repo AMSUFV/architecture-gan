@@ -6,25 +6,20 @@ from datetime import datetime
 from functools import reduce
 from utils import preprocessing, text
 
-
 AUTOTUNE = tf.data.experimental.AUTOTUNE
-
+GLOB_PATTERN = '\\*temple_{}*\\*'
+REPETITIONS = [1, 2]
 SEED = datetime.now().microsecond
+TEST_MODE = False
 
 PATH_TEMPLES = '\\temples'
-PATH_TEMPLES_RUINS = '\\temples_ruins'
 PATH_TEMPLES_COLORS = '\\colors_temples'
+PATH_TEMPLES_RUINS = '\\temples_ruins'
 PATH_TEMPLES_RUINS_COLORS = '\\colors_temples_ruins'
 PATH_TEXTS = '\\textos_parrafos'
 
-REPETITIONS = [1, 2]
-GLOB_PATTERN = '\\*temple_{}*\\*'
-
-TEST_MODE = False
-
 
 def get_dataset(path, option, *args):
-
     option = option.lower()
     if not os.path.isabs(path):
         path = os.path.abspath(path)
@@ -78,7 +73,6 @@ def get_dataset(path, option, *args):
 
 
 def reconstruction(temples, split=0.25, batch_size=1, buffer_size=400, *paths, **kwargs):
-
     files = list(map(lambda x: get_unique(x, paths), temples))
     files = reduce(concat, files)
 
@@ -89,14 +83,14 @@ def reconstruction(temples, split=0.25, batch_size=1, buffer_size=400, *paths, *
     size = sum(size)
 
     train_files, val_files = train_val_split(files, split, size, buffer_size)
-    train = train_files.map(preprocessing.load_images, num_parallel_calls=AUTOTUNE)\
+    train = train_files.map(preprocessing.load_images, num_parallel_calls=AUTOTUNE) \
         .batch(batch_size)
-    val = val_files.map(preprocessing.load_images, num_parallel_calls=AUTOTUNE)\
+    val = val_files.map(preprocessing.load_images, num_parallel_calls=AUTOTUNE) \
         .batch(batch_size)
 
     # embeddings
     if kwargs.get('descriptions'):
-        embeddings = get_embeddings(temples, kwargs['text_path'], repeat=size//len(temples))
+        embeddings = get_embeddings(temples, kwargs['text_path'], repeat=size // len(temples))
         train_emb, val_emb = train_val_split(embeddings, split, size, buffer_size)
         train_emb = train_emb.batch(batch_size)
         val_emb = val_emb.batch(batch_size)
@@ -157,9 +151,9 @@ def get_simple_dataset(width, height, *paths):
 
 def validate(model, width, height, down_blocks):
     if model.lower() == 'pix2pix':
-        if width % 2**down_blocks != 0:
+        if width % 2 ** down_blocks != 0:
             raise Exception("Width exception. The image won't make it through the bottleneck.")
-        elif height % 2**down_blocks != 0:
+        elif height % 2 ** down_blocks != 0:
             raise Exception("Height exception. The image won't make it through the bottleneck.")
         else:
             pass
