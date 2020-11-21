@@ -5,38 +5,6 @@ from tensorflow.keras.models import load_model
 from utils import data, preprocessing, evaluators
 
 
-# data.TEST_MODE = True
-#
-# preprocessing.HEIGHT = settings.IMG_HEIGHT
-# preprocessing.WIDTH = settings.IMG_WIDTH
-#
-# if settings.DATASET in ["color_assisted", "de-masking"]:
-#     data.REPETITIONS = [1, settings.REPEAT, settings.REPEAT]
-# elif settings.DATASET == "masking":
-#     data.REPETITIONS = [1, settings.REPEAT, settings.REPEAT, 1]
-# else:
-#     data.REPETITIONS = [1, settings.REPEAT]
-
-# dataset_dir = os.path.abspath(settings.DATASET_DIR)
-#
-# test = data.get_dataset(
-#     dataset_dir,
-#     settings.DATASET,
-#     settings.TEMPLES,
-#     settings.SPLIT,
-#     settings.BATCH_SIZE,
-#     settings.BUFFER_SIZE,
-# )
-#
-# model_dir = os.path.abspath(settings.MODEL_PATH)
-# generator = keras.models.load_model(model_dir)
-#
-# evaluator = L2Evaluator(generator=generator, assisted=True)
-# results = evaluator.evaluate(test)
-
-# print(sum(results) / len(results))
-
-
 def setup():
     data.TEST_MODE = True
     preprocessing.HEIGHT = settings.IMG_HEIGHT
@@ -50,18 +18,18 @@ def setup():
         data.REPETITIONS = [1, settings.REPEAT]
 
 
-def evaluate_single_model(data):
+def evaluate_single_model(dataset):
     generator = load_model(os.path.abspath(settings.MODEL_PATH))
     evaluator = evaluators.Evaluator(generator=generator, metric=settings.METRIC)
-    return evaluator.evaluate(data)
+    return evaluator.evaluate(dataset)
 
 
-def evaluate_step_model(data):
+def evaluate_step_model(dataset):
     segmentator = load_model(os.path.abspath(settings.MODEL_PATH.get('segmenter')))
     color_reconstructor = load_model(os.path.abspath(settings.MODEL_PATH.get('color_reconstructor')))
     reconstructor = load_model(os.path.abspath(settings.MODEL_PATH.get('reconstructor')))
     evaluator = evaluators.StepEvaluator(segmentator, color_reconstructor, reconstructor, metric=settings.METRIC)
-    return evaluator.evaluate(data)
+    return evaluator.evaluate(dataset)
 
 
 def to_file(results: list):

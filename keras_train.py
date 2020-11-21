@@ -9,18 +9,6 @@ from keras_parts.callbacks import ImageSampling
 from utils import data
 from utils import preprocessing
 
-
-def get_model_name() -> str:
-    resolution = f'{settings.IMG_WIDTH}x{settings.IMG_HEIGHT}'
-    return '_'.join([
-        resolution,
-        settings.MODEL,
-        settings.NORM_TYPE,
-        settings.DATASET,
-        ''.join(settings.TEMPLES)
-    ])
-
-
 # -- gpu memory limit --
 if settings.GPU_LIMIT:
     gpus = tf.config.experimental.list_physical_devices('GPU')
