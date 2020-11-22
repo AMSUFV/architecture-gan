@@ -4,8 +4,8 @@ import tensorflow as tf
 
 from datetime import datetime
 from tensorflow import keras
-from keras_parts import builder
-from keras_parts.callbacks import ImageSampling
+from refactor import builder
+from refactor.callbacks import ImageSampling
 from utils import data
 from utils import preprocessing
 

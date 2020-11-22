@@ -1,7 +1,7 @@
-import keras_models
+import models
 import tensorflow as tf
 from tensorflow.keras import optimizers
-from keras_parts import generators, discriminators, losses
+from refactor import generators, discriminators, losses
 
 
 def get_model(name, training, input_shape, norm_type="batch"):
@@ -13,12 +13,12 @@ def get_model(name, training, input_shape, norm_type="batch"):
             generator = generators.pix2pix_generator(
                 input_shape, assisted=True, norm_type=norm_type
             )
-            model = keras_models.Assisted
+            model = models.Assisted
         else:
             generator = generators.pix2pix_generator(
                 input_shape, assisted=False, norm_type=norm_type
             )
-            model = keras_models.Pix2Pix
+            model = models.Pix2Pix
         model = model(generator, discriminator)
 
         g_optimizer = optimizers.Adam(learning_rate=2e-4, beta_1=0.5)

@@ -69,7 +69,7 @@ def get_dataset(path, option, *args):
         return reconstruction(*args, x_path, y_path, descriptions=True, text_path=text_path)
 
     else:
-        raise Exception('Option not supported. Run keras_train.py -h to see the supported options.')
+        raise Exception('Option not supported. Run train.py -h to see the supported options.')
 
 
 def reconstruction(temples, split=0.25, batch_size=1, buffer_size=400, *paths, **kwargs):
