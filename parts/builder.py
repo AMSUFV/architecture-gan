@@ -1,7 +1,6 @@
 import models
-import tensorflow as tf
 from tensorflow.keras import optimizers
-from refactor import generators, discriminators, losses
+from parts import generators, discriminators, losses
 
 
 def get_model(name, training, input_shape, norm_type="batch"):
