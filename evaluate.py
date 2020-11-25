@@ -32,18 +32,9 @@ def evaluate_step_model(dataset):
     return evaluator.evaluate(dataset)
 
 
-def to_file(results: list):
-    file = settings.TEST_SAVE_PATH + settings.TEST_FILE_NAME + f'{settings.METRIC.name}.txt'
-    with open(file, 'w') as f:
-        for result in results:
-            f.write(f'{result}\n')
-
-
-def main():
-    setup()
-
+def get_data():
     dataset_dir = os.path.abspath(settings.DATASET_DIR)
-    test_dataset = data.get_dataset(
+    return data.get_dataset(
         dataset_dir,
         settings.DATASET,
         settings.TEMPLES,
@@ -52,11 +43,31 @@ def main():
         settings.BUFFER_SIZE,
     )
 
-    if type(settings.MODEL_PATH) is str:
-        results = evaluate_single_model(test_dataset)
-    else:
-        results = evaluate_step_model(test_dataset)
 
+def get_evaluator():
+    if type(settings.MODEL_PATH) is str:
+        generator = load_model(os.path.abspath(settings.MODEL_PATH))
+        evaluator = evaluators.Evaluator(generator=generator, metric=settings.METRIC)
+    else:
+        segmentator = load_model(os.path.abspath(settings.MODEL_PATH.get('segmenter')))
+        color_reconstructor = load_model(os.path.abspath(settings.MODEL_PATH.get('color_reconstructor')))
+        reconstructor = load_model(os.path.abspath(settings.MODEL_PATH.get('reconstructor')))
+        evaluator = evaluators.StepEvaluator(segmentator, color_reconstructor, reconstructor, metric=settings.METRIC)
+    return evaluator
+
+
+def to_file(results: list):
+    file = settings.TEST_SAVE_PATH + settings.TEST_FILE_NAME + f'{settings.METRIC.name}.txt'
+    with open(file, 'w') as f:
+        for result in results:
+            f.write(f'{result}'.strip('[]') + '\n')
+
+
+def main():
+    setup()
+    dataset = get_data()
+    evaluator = get_evaluator()
+    results = evaluator.evaluate(dataset)
     if settings.TO_FILE:
         to_file(results)
 
