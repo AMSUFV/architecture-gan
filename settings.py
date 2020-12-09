@@ -40,17 +40,17 @@ from utils import metrics
 # training params
 MODEL = 'pix2pix'
 NORM_TYPE = 'batch'
-EPOCHS = 10
+EPOCHS = 5
 LOG_DIR = 'logs/'
-LOG_IMAGES = True
+LOG_IMAGES = False
 N_SAMPLES = 4
 FREQUENCY = 3
-SAVE = True
+SAVE = False
 SAVE_PATH = 'saved_models/'
 RESTORE = False
 
 # dataset params
-DATASET = 'color_assisted'
+DATASET = 'reconstruction'
 DATASET_DIR = 'dataset/'
 TEMPLES: list = [0, 9]
 SPLIT = 0.2
@@ -64,13 +64,13 @@ IMG_WIDTH = 512
 GPU_LIMIT = None
 
 # test params
-MODEL_PATH = 'saved_models/512x256_pix2pix_batch_color_assisted_12345678'
-# MODEL_PATH = dict(
-#     segmenter='saved_models/512x256_pix2pix_batch_segmentation_12345678',
-#     color_reconstructor='saved_models/512x256_pix2pix_batch_color_reconstruction_12345678',
-#     reconstructor='saved_models/512x256_pix2pix_batch_color_assisted_12345678'
-# )
+# MODEL_PATH = 'saved_models/512x256_pix2pix_batch_color_assisted_12345678'
+MODEL_PATH = dict(
+    segmenter='saved_models/512x256_pix2pix_batch_segmentation_12345678',
+    color_reconstructor='saved_models/512x256_pix2pix_batch_color_reconstruction_12345678',
+    reconstructor='saved_models/512x256_pix2pix_batch_color_assisted_12345678'
+)
 TO_FILE = True
 TEST_SAVE_PATH = 'evaluation_results/'
-TEST_FILE_NAME = 'assisted_model/'
-METRIC = metrics.MSE
+TEST_FILE_NAME = 'step_model/'
+METRIC = 'C2ST'

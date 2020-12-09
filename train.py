@@ -4,9 +4,8 @@ import tensorflow as tf
 
 from datetime import datetime
 from tensorflow import keras
-from parts import builder
 from parts.callbacks import ImageSampling
-from utils import data
+from utils import data, builder
 from utils import preprocessing
 
 # -- gpu memory limit --

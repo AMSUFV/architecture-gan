@@ -156,7 +156,7 @@ def kfold_cv(k=5):
         classifier = Classifier(path_generator='../trained_models/reconstructor_simple.h5')
         classifier.discriminator = classifier.build_discriminator()
 
-        # Dataset obtention
+        # Dataset obtainment
         train_in = paths_in[:test_start] + paths_in[test_end:]
         train_in_color = paths_in_color[:test_start] + paths_in_color[test_end:]
         train_out = paths_out[:test_start] + paths_out[test_end:]

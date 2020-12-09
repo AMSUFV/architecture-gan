@@ -1,5 +1,6 @@
 import tensorflow as tf
 from tensorflow import keras
+from tensorflow.keras.models import load_model
 
 
 # noinspection PyAttributeOutsideInit,PyMethodOverriding
@@ -27,7 +28,7 @@ class Pix2Pix(keras.Model):
 
         return {"g_loss": g_loss, "d_loss": d_loss}
 
-    def compile(self, g_optimizer, d_optimizer, g_loss_fn, d_loss_fn):
+    def compile(self, g_optimizer=None, d_optimizer=None, g_loss_fn=None, d_loss_fn=None):
         super(Pix2Pix, self).compile()
         self.g_optimizer = g_optimizer
         self.d_optimizer = d_optimizer
@@ -101,3 +102,24 @@ class Assisted(Pix2Pix):
 
         return {"g_loss": g_loss, "d_loss": d_loss}
 
+
+class StepModel:
+    """StepModel
+    Model that takes ruin images as an input and is comprised of:
+    - A segmenter that generates a segmentation of said ruins
+    - A color reconstructor that reconstruct that segmentation
+    - A reconstructor that takes both the ruins and the segmented reconstruction to generate the true-color
+      reconstruction of the ruins
+    This class is for testing purposes only.
+    """
+
+    def __init__(self, segmenter: str, color_reconstructor: str, reconstructor: str):
+        self.segmenter = load_model(segmenter)
+        self.color_reconstructor = load_model(color_reconstructor)
+        self.reconstructor = load_model(reconstructor)
+
+    def __call__(self, x, training=False):
+        x_c = self.segmenter(x, training=training)
+        x_rc = self.color_reconstructor(x_c, training=training)
+        g_x = self.reconstructor([x, x_rc], training=training)
+        return g_x
