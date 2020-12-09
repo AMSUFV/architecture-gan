@@ -1,19 +1,31 @@
 import tensorflow as tf
-from tensorflow.keras import losses
+from tensorflow import keras
+
+bce_logits = keras.losses.BinaryCrossentropy(from_logits=True)
 
 
-def pix2pix():
-    bce = losses.BinaryCrossentropy(from_logits=True)
-
-    def loss_d(dy, dgx):
-        loss_y = bce(tf.ones_like(dy), dy)
-        loss_gx = bce(tf.zeros_like(dgx), dgx)
-        return loss_y, loss_gx
-
+class Pix2PixLosses:
+    @staticmethod
     def loss_g(y, gx, dgx):
-        loss_d_g_x = bce(tf.ones_like(dgx), dgx)
-        loss_l1 = tf.reduce_mean(tf.abs(y - gx))
-        loss_total = loss_d_g_x + 100 * loss_l1
-        return loss_total, loss_l1
+        dgx_loss = bce_logits(tf.ones_like(dgx), dgx)
+        l1_loss = tf.reduce_mean(tf.abs(y - gx))
+        return dgx_loss + 100 * l1_loss
 
-    return loss_d, loss_g
+    @staticmethod
+    def loss_d(dy, dgx):
+        dy_loss = bce_logits(tf.ones_like(dy), dy)
+        dgx_loss = bce_logits(tf.zeros_like(dgx), dgx)
+        return (dy_loss + dgx_loss) / 2
+
+    @staticmethod
+    def area_loss(y, gx, area):
+        """Loss aimed at pinpointing the differences in the area to be reconstructed
+        @param y: Tensor. Expected image.
+        @param gx: Tensor. Predicted image.
+        @param area: Tensor. Area where the reconstruction is happening, matrix of True/False or 1/0.
+        @return: loss: Tensor. L1 distance between y_area and gx_area.
+        """
+        diff = tf.abs(y - gx)
+        return tf.reduce_sum(
+            tf.where(mask == 1, diff, 0) / tf.cast(tf.reduce_sum(area), tf.float32)
+        )

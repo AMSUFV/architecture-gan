@@ -1,24 +1,42 @@
 import tensorflow as tf
-from parts.blocks import downsample
+import tensorflow_addons as tfa
+from tensorflow import keras
+from tensorflow.keras import layers
+from .blocks import downscale
 
 
-def patch(input_shape=None, dim=64, layers=4, norm_type='batchnorm'):
-    if input_shape is None:
-        input_shape = (None, None, 3)
+def pix2pix_discriminator(input_shape=(None, None, 3), norm_type="batch"):
+    initializer = tf.random_normal_initializer(0.0, 0.02)
 
-    initializer = tf.random_normal_initializer(0., 0.02)
+    input_image = layers.Input(shape=input_shape, name="input_image")
+    target_image = layers.Input(shape=input_shape, name="target_image")
+    x = layers.concatenate([input_image, target_image])
 
-    inp = tf.keras.layers.Input(shape=input_shape, name='input_image')
-    target_image = tf.keras.layers.Input(shape=input_shape, name='target_image')
-    x = tf.keras.layers.concatenate([inp, target_image])
+    x = downscale(x, 64, 4, apply_norm=False)
+    x = downscale(x, 128, 4, norm_type=norm_type)
+    x = downscale(x, 256, 4, norm_type=norm_type)
 
-    for layer in range(layers):
-        if layer == 0:
-            x = downsample(x, filters=dim, kernel_size=4, apply_norm=False)
-        else:
-            x = downsample(x, filters=dim, kernel_size=4, apply_norm=True, norm_type=norm_type)
-        dim *= 2
+    x = layers.ZeroPadding2D()(x)
+    x = layers.Conv2D(
+        filters=512,
+        kernel_size=4,
+        strides=1,
+        kernel_initializer=initializer,
+        use_bias=False,
+    )(x)
 
-    last = tf.keras.layers.Conv2D(1, 4, strides=1, kernel_initializer=initializer, activation='sigmoid')(x)
+    if norm_type == "batch":
+        x = layers.BatchNormalization()(x)
+    elif norm_type == "instance":
+        x = tfa.layers.InstanceNormalization()(x)
+    else:
+        raise Exception(f"Norm type not recognized: {norm_type}")
 
-    return tf.keras.Model(inputs=[inp, target_image], outputs=last)
+    x = layers.LeakyReLU()(x)
+    x = layers.ZeroPadding2D()(x)
+
+    markov_rf = layers.Conv2D(
+        filters=1, kernel_size=4, strides=1, kernel_initializer=initializer
+    )(x)
+
+    return keras.Model(inputs=[input_image, target_image], outputs=markov_rf)
